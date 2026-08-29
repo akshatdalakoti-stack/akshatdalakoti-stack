@@ -27,19 +27,24 @@
 
 ## About
 
-<!-- Rewrite this paragraph in your own words. -->
 I build things and take them apart to see why they worked. Most of what I enjoy
 sits where clean maths meets something you can actually watch move — simulation,
 graphics, embedded control, and the small tools that make the rest less painful.
 
-- 🔭 Currently working on — *(fill in)*
-- 🌱 Currently learning — *(fill in)*
-- 💬 Ask me about — *(fill in)*
-- 📫 Reach me at — **akshatdalakoti@gmail.com**
+- 🔭 Currently working on — **[minidb](https://github.com/akshatdalakoti-stack/minidb)**, a
+  database storage engine written from scratch in Go on the standard library alone:
+  pager, buffer pool, B-tree indexes, a write-ahead log, and crash recovery.
+- 🌱 Currently learning — systems internals the slow way, by rebuilding them.
+  [mini-redis](https://github.com/akshatdalakoti-stack/mini-redis) speaks the real RESP
+  protocol; minidb puts itself back together after you kill it mid-transaction.
+- 💬 Ask me about — storage engines, Redis internals, N-body integrators, or coaxing
+  BirdNET onto an ESP32.
+- 🧩 Puzzles — [LeetCode: dalakoti_0019_akshat](https://leetcode.com/u/dalakoti_0019_akshat/)
+- 📫 Reach me at — **akshatdalakoti@gmail.com** ·
+  [LinkedIn](https://www.linkedin.com/in/akshat-dalakoti-82b78137a/)
 
 ## Tech
 
-<!-- Trim anything here you would rather not claim; badges are just image URLs. -->
 <p>
   <img src="https://img.shields.io/badge/Python-05060f?style=flat-square&logo=python&logoColor=4cc9f0" alt="Python">
   <img src="https://img.shields.io/badge/C-05060f?style=flat-square&logo=c&logoColor=4cc9f0" alt="C">
@@ -62,14 +67,17 @@ graphics, embedded control, and the small tools that make the rest less painful.
 
 <img height="150" alt="Contribution streak" src="https://streak-stats.demolab.com?user=akshatdalakoti-stack&hide_border=true&background=05060f&ring=7c5cff&fire=ffd166&currStreakLabel=4cc9f0&sideLabels=b8c6ff&dates=8b93b8&stroke=1c2040&currStreakNum=e8ecff&sideNums=e8ecff">
 
+<img height="180" alt="LeetCode stats" src="https://leetcard.jacoblin.cool/dalakoti_0019_akshat?theme=dark&font=Source%20Code%20Pro&ext=heatmap">
+
 </div>
 
 ## Elsewhere
 
 <p>
   <a href="https://github.com/akshatdalakoti-stack"><img src="https://img.shields.io/badge/GitHub-05060f?style=for-the-badge&logo=github&logoColor=b8c6ff" alt="GitHub"></a>
+  <a href="https://www.linkedin.com/in/akshat-dalakoti-82b78137a/"><img src="https://img.shields.io/badge/LinkedIn-05060f?style=for-the-badge&logo=linkedin&logoColor=4cc9f0" alt="LinkedIn"></a>
+  <a href="https://leetcode.com/u/dalakoti_0019_akshat/"><img src="https://img.shields.io/badge/LeetCode-05060f?style=for-the-badge&logo=leetcode&logoColor=ffd166" alt="LeetCode"></a>
   <a href="mailto:akshatdalakoti@gmail.com"><img src="https://img.shields.io/badge/Email-05060f?style=for-the-badge&logo=gmail&logoColor=ffd166" alt="Email"></a>
-  <!-- Add your own: LinkedIn, X, site, wherever. -->
 </p>
 
 ---
