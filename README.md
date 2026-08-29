@@ -4,9 +4,9 @@
 
 ### **`Akshat Dalakoti`**
 
-**Nothing in that banner is a keyframe.** A star bends the lattice around it; a
-planet carries its trojans at L4 and L5; an inner world traces a rosette because
-relativity will not let its orbit close.
+***“Even the very wise cannot see all ends.”***
+
+<sub>— Gandalf, *The Lord of the Rings*</sub>
 
 <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/">
   <img src="https://img.shields.io/badge/▶_launch_the_live_simulation-05060f?style=for-the-badge&labelColor=7c5cff&color=05060f" alt="Launch the live simulation">
