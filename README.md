@@ -67,8 +67,6 @@ graphics, embedded control, and the small tools that make the rest less painful.
 
 <img height="150" alt="Contribution streak" src="https://streak-stats.demolab.com?user=akshatdalakoti-stack&hide_border=true&background=05060f&ring=7c5cff&fire=ffd166&currStreakLabel=4cc9f0&sideLabels=b8c6ff&dates=8b93b8&stroke=1c2040&currStreakNum=e8ecff&sideNums=e8ecff">
 
-<img height="180" alt="LeetCode stats" src="https://leetcard.jacoblin.cool/dalakoti_0019_akshat?theme=dark&font=Source%20Code%20Pro&ext=heatmap">
-
 </div>
 
 ## Elsewhere
