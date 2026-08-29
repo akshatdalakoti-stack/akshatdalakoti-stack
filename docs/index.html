@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Orbital — a live N-body playground</title>
+<meta name="description" content="A real-time gravitational N-body simulation. Drag to slingshot new worlds into orbit.">
+<meta name="color-scheme" content="dark">
+<style>
+  :root {
+    --bg: #05060f;
+    --violet: #7c5cff;
+    --cyan: #4cc9f0;
+    --gold: #ffd166;
+    --ink: #e8ecff;
+    --muted: #8b93b8;
+    --panel: rgba(14, 16, 34, 0.72);
+    --line: rgba(124, 92, 255, 0.22);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  canvas { display: block; position: fixed; inset: 0; touch-action: none; cursor: crosshair; }
+
+  .panel {
+    position: fixed;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  }
+
+  /* ---------------------------------------------------------- title card */
+  #title { top: 18px; left: 18px; padding: 14px 18px; max-width: 330px; }
+  #title h1 {
+    margin: 0;
+    font-size: 17px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    background: linear-gradient(92deg, var(--violet), var(--cyan) 55%, var(--gold));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  #title p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+  #title kbd {
+    font: 11px ui-monospace, "SF Mono", Consolas, monospace;
+    background: rgba(124, 92, 255, 0.16);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 5px;
+    color: var(--ink);
+  }
+
+  /* --------------------------------------------------------------- HUD */
+  #hud {
+    top: 18px; right: 18px; padding: 12px 14px;
+    font: 11.5px/1.7 ui-monospace, "SF Mono", Consolas, monospace;
+    color: var(--muted);
+    min-width: 178px;
+  }
+  #hud b { color: var(--ink); font-weight: 600; float: right; margin-left: 14px; }
+  #hud .warn { color: var(--gold); }
+
+  /* ----------------------------------------------------------- controls */
+  #controls {
+    bottom: 18px; left: 50%; transform: translateX(-50%);
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 18px;
+    flex-wrap: wrap; justify-content: center;
+    max-width: min(940px, calc(100vw - 36px));
+  }
+  .ctl { display: flex; flex-direction: column; gap: 4px; min-width: 104px; }
+  .ctl label {
+    font: 10px/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+    display: flex; justify-content: space-between; gap: 10px;
+  }
+  .ctl label span { color: var(--cyan); }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 3px; border-radius: 2px; background: rgba(124,92,255,.3);
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--cyan); cursor: pointer; box-shadow: 0 0 10px var(--cyan);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 13px; height: 13px; border: 0; border-radius: 50%;
+    background: var(--cyan); cursor: pointer; box-shadow: 0 0 10px var(--cyan);
+  }
+  .sep { width: 1px; align-self: stretch; background: var(--line); }
+  .btns { display: flex; gap: 7px; flex-wrap: wrap; }
+  button {
+    font: 11px ui-monospace, Consolas, monospace;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+    background: rgba(124, 92, 255, 0.14);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 11px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s, transform .1s;
+    white-space: nowrap;
+  }
+  button:hover { background: rgba(76, 201, 240, 0.22); border-color: var(--cyan); }
+  button:active { transform: translateY(1px); }
+  button[aria-pressed="true"] { background: rgba(76,201,240,.28); border-color: var(--cyan); }
+
+  #hint {
+    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
+    color: var(--muted); font-size: 12px; pointer-events: none;
+    opacity: 0; transition: opacity .4s; text-align: center;
+  }
+  #hint.show { opacity: 1; }
+
+  @media (max-width: 760px) {
+    #title { max-width: none; right: 18px; }
+    #title p { display: none; }
+    #hud { display: none; }
+    #controls { gap: 12px; padding: 10px 12px; }
+    .sep { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { #hint { transition: none; } }
+</style>
+</head>
+<body>
+<canvas id="sky" aria-label="Live gravitational N-body simulation"></canvas>
+
+<div class="panel" id="title">
+  <h1>Orbital</h1>
+  <p>A real gravitational <em>N</em>-body integration, running live.
+     <kbd>drag</kbd> to slingshot a world &middot; <kbd>hold</kbd> to pull &middot;
+     <kbd>space</kbd> pause &middot; <kbd>R</kbd> reset</p>
+</div>
+
+<div class="panel" id="hud">
+  <div>bodies <b id="hBodies">0</b></div>
+  <div>fps <b id="hFps">0</b></div>
+  <div>kinetic <b id="hKe">0</b></div>
+  <div>potential <b id="hPe">0</b></div>
+  <div>total E <b id="hTe">0</b></div>
+</div>
+
+<div id="hint"></div>
+
+<div class="panel" id="controls">
+  <div class="ctl">
+    <label>gravity <span id="vG">1.00</span></label>
+    <input type="range" id="sG" min="0" max="3" step="0.01" value="1">
+  </div>
+  <div class="ctl">
+    <label>trails <span id="vT">0.930</span></label>
+    <input type="range" id="sT" min="0" max="0.985" step="0.005" value="0.93">
+  </div>
+  <div class="ctl">
+    <label>bodies <span id="vN">160</span></label>
+    <input type="range" id="sN" min="3" max="420" step="1" value="160">
+  </div>
+  <div class="sep"></div>
+  <div class="btns">
+    <button data-preset="eight">figure&#8209;8</button>
+    <button data-preset="disc">disc</button>
+    <button data-preset="binary">binary</button>
+    <button data-preset="collision">collision</button>
+    <button data-preset="collapse">collapse</button>
+  </div>
+  <div class="sep"></div>
+  <div class="btns">
+    <button id="bMerge" aria-pressed="true">merge</button>
+    <button id="bPause">pause</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const cv = document.getElementById('sky');
+  const ctx = cv.getContext('2d', { alpha: false });
+  const PALETTE = ['#7c5cff', '#4cc9f0', '#ffd166', '#ff8fd1', '#b8c6ff'];
+  // draw order weights the cosmic three; the accents stay rare
+  const WEIGHTED = [0, 0, 0, 1, 1, 1, 2, 2, 3, 4].map(i => PALETTE[i]);
+
+  let W = 0, H = 0, DPR = 1;
+  function resize() {
+    DPR = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.round(W * DPR);
+    cv.height = Math.round(H * DPR);
+    cv.style.width = W + 'px';
+    cv.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = '#05060f';
+    ctx.fillRect(0, 0, W, H);
+    makeStars();
+  }
+
+  /* ------------------------------------------------------ glow sprites */
+  // Pre-rendered radial gradients: far cheaper per frame than shadowBlur.
+  const sprites = new Map();
+  function sprite(colour) {
+    let s = sprites.get(colour);
+    if (s) return s;
+    const R = 64, c = document.createElement('canvas');
+    c.width = c.height = R * 2;
+    const g = c.getContext('2d').createRadialGradient(R, R, 0, R, R, R);
+    g.addColorStop(0.00, '#ffffff');
+    g.addColorStop(0.16, colour);
+    g.addColorStop(0.42, colour + '55');
+    g.addColorStop(1.00, colour + '00');
+    const cc = c.getContext('2d');
+    cc.fillStyle = g;
+    cc.fillRect(0, 0, R * 2, R * 2);
+    sprites.set(colour, c);
+    return c;
+  }
+
+  /* ----------------------------------------------------------- starfield */
+  let starLayer = null;
+  function makeStars() {
+    starLayer = document.createElement('canvas');
+    starLayer.width = cv.width; starLayer.height = cv.height;
+    const c = starLayer.getContext('2d');
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    for (let i = 0; i < Math.round(W * H / 5200); i++) {
+      const r = 0.3 + Math.random() * 1.0;
+      c.globalAlpha = 0.15 + Math.random() * 0.5;
+      c.fillStyle = '#dfe8ff';
+      c.beginPath();
+      c.arc(Math.random() * W, Math.random() * H, r, 0, 6.2832);
+      c.fill();
+    }
+    c.globalAlpha = 1;
+  }
+
+  /* ------------------------------------------------------------- physics */
+  const S = {
+    G: 1, trail: 0.93, n: 160, merge: true, paused: false,
+    eps2: 90,          // Plummer softening, keeps close encounters finite
+    sub: 2,            // integration substeps per animation frame
+    dt: 0.85
+  };
+  let bodies = [];
+  const rOf = m => Math.max(1.1, Math.cbrt(m) * 1.55);
+
+  function body(x, y, vx, vy, m, colour) {
+    return { x, y, vx, vy, m, r: rOf(m), ax: 0, ay: 0,
+             c: colour || WEIGHTED[(Math.random() * WEIGHTED.length) | 0] };
+  }
+
+  function accelerations() {
+    const n = bodies.length, G = S.G, eps2 = S.eps2;
+    for (let i = 0; i < n; i++) { bodies[i].ax = 0; bodies[i].ay = 0; }
+    for (let i = 0; i < n; i++) {
+      const a = bodies[i];
+      for (let j = i + 1; j < n; j++) {
+        const b = bodies[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d2 = dx * dx + dy * dy + eps2;
+        const inv = G / (d2 * Math.sqrt(d2));   // 1/r^3 with softening
+        const fa = inv * b.m, fb = inv * a.m;
+        a.ax += dx * fa; a.ay += dy * fa;
+        b.ax -= dx * fb; b.ay -= dy * fb;
+      }
+    }
+    // the pointer acts as an invisible mass while held down
+    if (ptr.hold && !ptr.dragging) {
+      const M = ptr.repel ? -9000 : 9000;
+      for (let i = 0; i < n; i++) {
+        const a = bodies[i];
+        const dx = ptr.x - a.x, dy = ptr.y - a.y;
+        const d2 = dx * dx + dy * dy + 900;
+        const inv = S.G * M / (d2 * Math.sqrt(d2));
+        a.ax += dx * inv; a.ay += dy * inv;
+      }
+    }
+  }
+
+  function step(dt) {
+    // velocity Verlet: kick, drift, recompute, kick
+    const n = bodies.length, h = dt * 0.5;
+    for (let i = 0; i < n; i++) {
+      const b = bodies[i];
+      b.vx += b.ax * h; b.vy += b.ay * h;
+      b.x += b.vx * dt; b.y += b.vy * dt;
+    }
+    accelerations();
+    for (let i = 0; i < n; i++) {
+      const b = bodies[i];
+      b.vx += b.ax * h; b.vy += b.ay * h;
+    }
+    if (S.merge) collide();
+  }
+
+  function collide() {
+    for (let i = 0; i < bodies.length; i++) {
+      const a = bodies[i];
+      for (let j = i + 1; j < bodies.length; j++) {
+        const b = bodies[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const rr = a.r + b.r;
+        if (dx * dx + dy * dy < rr * rr * 0.5) {
+          // perfectly inelastic: conserve mass and linear momentum
+          const M = a.m + b.m;
+          a.x = (a.x * a.m + b.x * b.m) / M;
+          a.y = (a.y * a.m + b.y * b.m) / M;
+          a.vx = (a.vx * a.m + b.vx * b.m) / M;
+          a.vy = (a.vy * a.m + b.vy * b.m) / M;
+          if (b.m > a.m) a.c = b.c;
+          a.m = M; a.r = rOf(M);
+          flashes.push({ x: a.x, y: a.y, r: rr * 2.4, life: 1, c: a.c });
+          bodies.splice(j--, 1);
+        }
+      }
+    }
+  }
+
+  function energy() {
+    let ke = 0, pe = 0;
+    for (let i = 0; i < bodies.length; i++) {
+      const a = bodies[i];
+      ke += 0.5 * a.m * (a.vx * a.vx + a.vy * a.vy);
+      for (let j = i + 1; j < bodies.length; j++) {
+        const b = bodies[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        pe -= S.G * a.m * b.m / Math.sqrt(dx * dx + dy * dy + S.eps2);
+      }
+    }
+    return [ke, pe];
+  }
+
+  /* ------------------------------------------------------------- presets */
+  // A body on a circular orbit at radius r around mass M has v = sqrt(GM/r).
+  const orbitV = (M, r) => Math.sqrt(S.G * M / r);
+
+  function ring(cx, cy, M, count, rMin, rMax, spin, spread) {
+    for (let i = 0; i < count; i++) {
+      const t = Math.random();
+      const r = rMin + (rMax - rMin) * Math.sqrt(t);
+      const a = Math.random() * 6.2832;
+      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+      const v = orbitV(M, r) * (0.94 + Math.random() * 0.12);
+      const jitter = (Math.random() - 0.5) * (spread || 0);
+      bodies.push(body(x, y,
+        -Math.sin(a) * v * spin + jitter, Math.cos(a) * v * spin + jitter,
+        0.5 + Math.random() * 2.2));
+    }
+  }
+
+  const PRESETS = {
+    // The Chenciner-Montgomery choreography: three equal masses chasing one
+    // another around a single figure-eight curve. Same solution as the banner.
+    eight() {
+      const s = Math.min(W, H) * 0.30, cx = W / 2, cy = H / 2;
+      const m = 900, k = Math.sqrt(S.G * m / (s * s * s)) * s;
+      const px = 0.97000436, py = -0.24308753;
+      const vx = -0.93240737, vy = -0.86473146;
+      const B = [[-px, -py, -vx / 2, -vy / 2], [px, py, -vx / 2, -vy / 2],
+                 [0, 0, vx, vy]];
+      B.forEach((b, i) => bodies.push(body(
+        cx + b[0] * s, cy - b[1] * s, b[2] * k, -b[3] * k, m, PALETTE[i])));
+      return 'Three equal masses on one shared figure-eight — an exact periodic solution.';
+    },
+    disc() {
+      const cx = W / 2, cy = H / 2, M = 5200;
+      bodies.push(body(cx, cy, 0, 0, M, '#ffd166'));
+      ring(cx, cy, M, S.n - 1, Math.min(W, H) * 0.07, Math.min(W, H) * 0.44, 1);
+      return 'A protoplanetary disc. Watch the inner bodies lap the outer ones.';
+    },
+    binary() {
+      const cx = W / 2, cy = H / 2, M = 2600, sep = Math.min(W, H) * 0.13;
+      const v = 0.5 * Math.sqrt(S.G * 2 * M / sep);
+      bodies.push(body(cx - sep / 2, cy, 0, -v, M, '#ffd166'));
+      bodies.push(body(cx + sep / 2, cy, 0, v, M, '#ff8fd1'));
+      ring(cx, cy, 2 * M, S.n - 2, sep * 2.1, Math.min(W, H) * 0.46, 1);
+      return 'A circumbinary disc: stable only outside roughly twice the separation.';
+    },
+    collision() {
+      const M = 2600, R = Math.min(W, H) * 0.20, half = (S.n - 2) >> 1;
+      const drift = 0.55;
+      [[W * 0.30, H * 0.34, drift, '#4cc9f0'],
+       [W * 0.70, H * 0.66, -drift, '#7c5cff']].forEach(([cx, cy, d, col]) => {
+        bodies.push(body(cx, cy, d, 0, M, col));
+        const before = bodies.length;
+        ring(cx, cy, M, half, R * 0.16, R, 1);
+        for (let i = before; i < bodies.length; i++) bodies[i].vx += d;
+      });
+      return 'Two galaxies on an interception course. Tidal tails form on approach.';
+    },
+    collapse() {
+      const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.36;
+      for (let i = 0; i < S.n; i++) {
+        const a = Math.random() * 6.2832, r = R * Math.sqrt(Math.random());
+        bodies.push(body(cx + Math.cos(a) * r, cy + Math.sin(a) * r,
+                         0, 0, 1 + Math.random() * 3));
+      }
+      return 'Cold collapse: released from rest, the cloud falls in and violently relaxes.';
+    }
+  };
+
+  let flashes = [];
+  let currentPreset = 'disc';
+
+  // Each scenario runs at its own natural pace, so the trail length that reads
+  // well differs: slow, massive bodies need a much longer persistence than a
+  // fast inner disc before the streak escapes their own glow.
+  const PRESET_TRAIL = {
+    eight: 0.975, disc: 0.93, binary: 0.94, collision: 0.955, collapse: 0.96
+  };
+  function load(name) {
+    currentPreset = name;
+    bodies = [];
+    flashes = [];
+    const msg = PRESETS[name]();
+    if (PRESET_TRAIL[name] !== undefined) {
+      S.trail = PRESET_TRAIL[name];
+      $('sT').value = S.trail;
+      $('vT').textContent = S.trail.toFixed(3);
+    }
+    accelerations();
+    ctx.fillStyle = '#05060f';
+    ctx.fillRect(0, 0, W, H);
+    hint(msg);
+  }
+
+  /* ------------------------------------------------------------- pointer */
+  const ptr = { x: 0, y: 0, hold: false, repel: false, dragging: false,
+                sx: 0, sy: 0 };
+
+  const pos = e => {
+    const t = e.touches ? e.touches[0] : e;
+    ptr.x = t.clientX; ptr.y = t.clientY;
+  };
+
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId);
+    pos(e);
+    ptr.sx = ptr.x; ptr.sy = ptr.y;
+    ptr.hold = true;
+    ptr.repel = e.button === 2 || e.shiftKey;
+    ptr.dragging = false;
+  });
+  cv.addEventListener('pointermove', e => {
+    pos(e);
+    if (ptr.hold && Math.hypot(ptr.x - ptr.sx, ptr.y - ptr.sy) > 9)
+      ptr.dragging = true;
+  });
+  cv.addEventListener('pointerup', e => {
+    pos(e);
+    if (ptr.dragging) {
+      // slingshot: drag length sets launch speed, direction is drag-reversed
+      const dx = ptr.sx - ptr.x, dy = ptr.sy - ptr.y;
+      const m = ptr.repel ? 420 : 26;
+      bodies.push(body(ptr.sx, ptr.sy, dx * 0.05, dy * 0.05, m));
+      accelerations();
+    }
+    ptr.hold = false; ptr.dragging = false;
+  });
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* ---------------------------------------------------------------- HUD */
+  const $ = id => document.getElementById(id);
+  const fmt = v => {
+    const a = Math.abs(v);
+    if (a >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+    if (a >= 1e3) return (v / 1e3).toFixed(2) + 'k';
+    return v.toFixed(1);
+  };
+
+  let hintTimer = 0;
+  function hint(text) {
+    const el = $('hint');
+    el.textContent = text;
+    el.classList.add('show');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => el.classList.remove('show'), 4200);
+  }
+
+  $('sG').addEventListener('input', e => {
+    S.G = +e.target.value; $('vG').textContent = S.G.toFixed(2);
+  });
+  $('sT').addEventListener('input', e => {
+    S.trail = +e.target.value; $('vT').textContent = S.trail.toFixed(3);
+  });
+  $('sN').addEventListener('input', e => {
+    S.n = +e.target.value; $('vN').textContent = S.n;
+  });
+  $('sN').addEventListener('change', () => load(currentPreset));
+  document.querySelectorAll('[data-preset]').forEach(b =>
+    b.addEventListener('click', () => load(b.dataset.preset)));
+  $('bMerge').addEventListener('click', e => {
+    S.merge = !S.merge;
+    e.currentTarget.setAttribute('aria-pressed', String(S.merge));
+  });
+  $('bPause').addEventListener('click', togglePause);
+  function togglePause() {
+    S.paused = !S.paused;
+    $('bPause').textContent = S.paused ? 'resume' : 'pause';
+    $('bPause').setAttribute('aria-pressed', String(S.paused));
+  }
+  addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); togglePause(); }
+    else if (e.key === 'r' || e.key === 'R') load(currentPreset);
+  });
+  addEventListener('resize', () => { resize(); load(currentPreset); });
+
+  /* -------------------------------------------------------------- render */
+  let last = performance.now(), fps = 60, frame = 0;
+
+  function draw(now) {
+    requestAnimationFrame(draw);
+    const elapsed = now - last;
+    last = now;
+    fps += (1000 / Math.max(elapsed, 1) - fps) * 0.08;
+
+    if (!S.paused) {
+      const dt = S.dt / S.sub;
+      for (let k = 0; k < S.sub; k++) step(dt);
+    }
+
+    // motion blur: fade the previous frame instead of clearing it
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = 'rgba(5, 6, 15, ' + (1 - S.trail).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
+
+    if (starLayer) {
+      ctx.globalAlpha = 0.10;
+      ctx.drawImage(starLayer, 0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < bodies.length; i++) {
+      const b = bodies[i];
+      const g = Math.min(Math.max(b.r * 3.0, 5.5), 74);
+      ctx.drawImage(sprite(b.c), b.x - g, b.y - g, g * 2, g * 2);
+    }
+
+    for (let i = flashes.length - 1; i >= 0; i--) {
+      const f = flashes[i];
+      f.life -= 0.045;
+      if (f.life <= 0) { flashes.splice(i, 1); continue; }
+      const g = f.r * (2.4 - f.life);
+      ctx.globalAlpha = f.life * 0.6;
+      ctx.drawImage(sprite(f.c), f.x - g, f.y - g, g * 2, g * 2);
+      ctx.globalAlpha = 1;
+    }
+
+    // slingshot aiming line
+    if (ptr.hold && ptr.dragging) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = 'rgba(255, 209, 102, 0.75)';
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(ptr.sx, ptr.sy);
+      ctx.lineTo(ptr.x, ptr.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(ptr.sx, ptr.sy, 5, 0, 6.2832);
+      ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    if ((frame++ & 15) === 0) {
+      $('hBodies').textContent = bodies.length;
+      $('hFps').textContent = fps.toFixed(0);
+      const [ke, pe] = energy();
+      $('hKe').textContent = fmt(ke);
+      $('hPe').textContent = fmt(pe);
+      const te = $('hTe');
+      te.textContent = fmt(ke + pe);
+      te.className = ke + pe < 0 ? '' : 'warn';   // positive total => unbound
+    }
+  }
+
+  resize();
+  // deep-link a scenario with e.g. .../orbital/#eight
+  const wanted = decodeURIComponent(location.hash.slice(1));
+  load(Object.prototype.hasOwnProperty.call(PRESETS, wanted) ? wanted : 'disc');
+  addEventListener('hashchange', () => {
+    const w = decodeURIComponent(location.hash.slice(1));
+    if (Object.prototype.hasOwnProperty.call(PRESETS, w)) load(w);
+  });
+  requestAnimationFrame(draw);
+})();
+</script>
+</body>
+</html>
