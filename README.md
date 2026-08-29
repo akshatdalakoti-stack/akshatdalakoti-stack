@@ -1,11 +1,12 @@
 <div align="center">
 
-<img src="assets/hero.svg" width="100%" alt="Three equal masses tracing a figure-eight choreography, flanked by two Keplerian orbital systems">
+<img src="assets/hero.svg" width="100%" alt="A star bending a lattice of spacetime, orbited by a planet with trojan swarms at its L4 and L5 points, and an inner body tracing a relativistic rosette">
 
 ### **`Akshat Dalakoti`**
 
-**Nothing in that banner is a keyframe.** It is a numerically integrated solution
-to the three-body problem, baked frame-for-frame into SVG.
+**Nothing in that banner is a keyframe.** A star bends the lattice around it; a
+planet carries its trojans at L4 and L5; an inner world traces a rosette because
+relativity will not let its orbit close.
 
 <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/">
   <img src="https://img.shields.io/badge/▶_launch_the_live_simulation-05060f?style=for-the-badge&labelColor=7c5cff&color=05060f" alt="Launch the live simulation">
@@ -13,6 +14,8 @@ to the three-body problem, baked frame-for-frame into SVG.
 
 <sub>
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#eight">figure&#8209;8</a> ·
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#trojans">trojans</a> ·
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#precession">precession</a> ·
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#binary">binary</a> ·
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#collision">galaxy collision</a> ·
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#collapse">cold collapse</a>

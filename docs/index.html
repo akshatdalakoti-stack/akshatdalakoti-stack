@@ -27,6 +27,9 @@
     -webkit-font-smoothing: antialiased;
   }
   canvas { display: block; position: fixed; inset: 0; touch-action: none; cursor: crosshair; }
+  #bg { z-index: 0; }
+  #sky { z-index: 1; }
+  .panel, #hint { z-index: 3; }
 
   .panel {
     position: fixed;
@@ -134,6 +137,7 @@
 </style>
 </head>
 <body>
+<canvas id="bg" aria-hidden="true"></canvas>
 <canvas id="sky" aria-label="Live gravitational N-body simulation"></canvas>
 
 <div class="panel" id="title">
@@ -173,9 +177,13 @@
     <button data-preset="binary">binary</button>
     <button data-preset="collision">collision</button>
     <button data-preset="collapse">collapse</button>
+    <button data-preset="trojans">trojans</button>
+    <button data-preset="precession">precession</button>
   </div>
   <div class="sep"></div>
   <div class="btns">
+    <button id="bGrid" aria-pressed="false">spacetime</button>
+    <button id="bGR" aria-pressed="false">relativity</button>
     <button id="bMerge" aria-pressed="true">merge</button>
     <button id="bPause">pause</button>
   </div>
@@ -185,8 +193,14 @@
 (() => {
   'use strict';
 
+  // Two layers. The body layer keeps its own history (that is what makes the
+  // trails), so anything redrawn identically every frame would accumulate there
+  // until it saturated -- hence the starfield and the grid live on their own
+  // opaque layer that is simply repainted.
   const cv = document.getElementById('sky');
-  const ctx = cv.getContext('2d', { alpha: false });
+  const ctx = cv.getContext('2d');
+  const bg = document.getElementById('bg');
+  const bgc = bg.getContext('2d', { alpha: false });
   const PALETTE = ['#7c5cff', '#4cc9f0', '#ffd166', '#ff8fd1', '#b8c6ff'];
   // draw order weights the cosmic three; the accents stay rare
   const WEIGHTED = [0, 0, 0, 1, 1, 1, 2, 2, 3, 4].map(i => PALETTE[i]);
@@ -195,13 +209,15 @@
   function resize() {
     DPR = Math.min(devicePixelRatio || 1, 2);
     W = innerWidth; H = innerHeight;
-    cv.width = Math.round(W * DPR);
-    cv.height = Math.round(H * DPR);
-    cv.style.width = W + 'px';
-    cv.style.height = H + 'px';
+    for (const c of [bg, cv]) {
+      c.width = Math.round(W * DPR);
+      c.height = Math.round(H * DPR);
+      c.style.width = W + 'px';
+      c.style.height = H + 'px';
+    }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.fillStyle = '#05060f';
-    ctx.fillRect(0, 0, W, H);
+    bgc.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
     makeStars();
   }
 
@@ -225,6 +241,48 @@
     return c;
   }
 
+  /* ------------------------------------------------- warped spacetime */
+  // Every lattice node is displaced toward each mass, so the grid sags into
+  // the wells the bodies are genuinely falling down. Only the heavy bodies
+  // bend it, which keeps this cheap enough to redraw every frame.
+  let wx = 0, wy = 0;
+  function drawGrid() {
+    const heavy = bodies.filter(b => b.m > 6)
+                        .sort((a, b) => b.m - a.m).slice(0, 12);
+    if (!heavy.length) return;
+    const STEP = 48, FINE = 10;
+    const warp = (x, y) => {
+      wx = x; wy = y;
+      for (let i = 0; i < heavy.length; i++) {
+        const b = heavy[i];
+        const ox = x - b.x, oy = y - b.y;
+        const d = Math.sqrt(ox * ox + oy * oy) + 24;
+        let pull = 46 * Math.sqrt(b.m) / d;
+        if (pull > d * 0.7) pull = d * 0.7;
+        wx -= ox / d * pull;
+        wy -= oy / d * pull;
+      }
+    };
+    bgc.strokeStyle = 'rgba(124, 92, 255, 0.24)';
+    bgc.lineWidth = 1;
+    bgc.beginPath();
+    for (let y = -STEP; y <= H + STEP; y += STEP) {
+      let first = true;
+      for (let x = -STEP; x <= W + STEP; x += FINE) {
+        warp(x, y);
+        if (first) { bgc.moveTo(wx, wy); first = false; } else bgc.lineTo(wx, wy);
+      }
+    }
+    for (let x = -STEP; x <= W + STEP; x += STEP) {
+      let first = true;
+      for (let y = -STEP; y <= H + STEP; y += FINE) {
+        warp(x, y);
+        if (first) { bgc.moveTo(wx, wy); first = false; } else bgc.lineTo(wx, wy);
+      }
+    }
+    bgc.stroke();
+  }
+
   /* ----------------------------------------------------------- starfield */
   let starLayer = null;
   function makeStars() {
@@ -246,6 +304,11 @@
   /* ------------------------------------------------------------- physics */
   const S = {
     G: 1, trail: 0.93, n: 160, merge: true, paused: false,
+    grid: false, gr: false,
+    // Apsidal advance per orbit is 2*pi*rs^2/(a(1-e^2))^2, so rs sets how
+    // fast the rosette turns. Around 34 gives ~45 degrees per orbit: clearly
+    // visible, still a perturbation. Much larger and orbits plunge instead.
+    rs: 34,
     eps2: 90,          // Plummer softening, keeps close encounters finite
     sub: 2,            // integration substeps per animation frame
     dt: 0.85
@@ -260,6 +323,7 @@
 
   function accelerations() {
     const n = bodies.length, G = S.G, eps2 = S.eps2;
+    const gr = S.gr, rs2 = S.rs * S.rs;
     for (let i = 0; i < n; i++) { bodies[i].ax = 0; bodies[i].ay = 0; }
     for (let i = 0; i < n; i++) {
       const a = bodies[i];
@@ -267,7 +331,10 @@
         const b = bodies[j];
         const dx = b.x - a.x, dy = b.y - a.y;
         const d2 = dx * dx + dy * dy + eps2;
-        const inv = G / (d2 * Math.sqrt(d2));   // 1/r^3 with softening
+        let inv = G / (d2 * Math.sqrt(d2));     // 1/r^3 with softening
+        // Schwarzschild's extra 1/r^4 term: the same correction that makes
+        // Mercury's perihelion creep, exaggerated so you can watch it happen.
+        if (gr) inv *= Math.min(1 + rs2 / d2, 6);
         const fa = inv * b.m, fb = inv * a.m;
         a.ax += dx * fa; a.ay += dy * fa;
         b.ax -= dx * fb; b.ay -= dy * fb;
@@ -397,6 +464,41 @@
       });
       return 'Two galaxies on an interception course. Tidal tails form on approach.';
     },
+    // Tadpole orbits: small bodies librate about the L4/L5 points, the two
+    // equilibria 60 degrees ahead of and behind the planet. Stable only while
+    // the planet is far lighter than the star, so it is here.
+    trojans() {
+      const cx = W / 2, cy = H / 2, M = 6400, R = Math.min(W, H) * 0.34;
+      bodies.push(body(cx, cy, 0, 0, M, '#ffd166'));
+      bodies.push(body(cx + R, cy, 0, orbitV(M, R), 55, '#4cc9f0'));
+      const swarm = Math.max(0, S.n - 2) >> 1;
+      for (const sgn of [1, -1]) {
+        for (let i = 0; i < swarm; i++) {
+          const a = sgn * Math.PI / 3 + (Math.random() - 0.5) * 0.5;
+          const r = R * (1 + (Math.random() - 0.5) * 0.06);
+          const v = orbitV(M, r);
+          bodies.push(body(cx + Math.cos(a) * r, cy + Math.sin(a) * r,
+                           -Math.sin(a) * v, Math.cos(a) * v,
+                           0.04 + Math.random() * 0.08,
+                           sgn > 0 ? '#7c5cff' : '#ff8fd1'));
+        }
+      }
+      return 'Trojans librating about L4 and L5, sixty degrees ahead of and behind the planet.';
+    },
+    // Turns relativity on: the extra 1/r^4 pull means an ellipse no longer
+    // closes, so each orbit slowly rotates and paints a rosette.
+    precession() {
+      const cx = W / 2, cy = H / 2, M = 6000;
+      // (relativity is switched on for this scenario by PRESET_GR)
+      bodies.push(body(cx, cy, 0, 0, M, '#ffd166'));
+      for (let i = 0; i < 3; i++) {
+        const r = Math.min(W, H) * (0.18 + i * 0.08);
+        // 0.82 of circular speed puts apoapsis here and periapsis at ~0.5r,
+        // eccentric enough to see the axis turn, wide enough never to plunge
+        bodies.push(body(cx + r, cy, 0, orbitV(M, r) * 0.82, 2.5, PALETTE[i]));
+      }
+      return 'Relativity on. The ellipses no longer close, so each one rosettes.';
+    },
     collapse() {
       const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.36;
       for (let i = 0; i < S.n; i++) {
@@ -414,22 +516,30 @@
   // Each scenario runs at its own natural pace, so the trail length that reads
   // well differs: slow, massive bodies need a much longer persistence than a
   // fast inner disc before the streak escapes their own glow.
+  // Relativity is a property of the scenario, not a sticky global: leaving it
+  // on after switching away would quietly collapse the next preset.
+  const PRESET_GR = { precession: true };
+  // Trojan dust and rosette test bodies are meant to survive, not coalesce.
+  const PRESET_MERGE = { trojans: false, precession: false };
+
   const PRESET_TRAIL = {
-    eight: 0.975, disc: 0.93, binary: 0.94, collision: 0.955, collapse: 0.96
+    eight: 0.975, disc: 0.93, binary: 0.94, collision: 0.955, collapse: 0.96,
+    trojans: 0.95, precession: 0.982
   };
   function load(name) {
     currentPreset = name;
     bodies = [];
     flashes = [];
     const msg = PRESETS[name]();
+    setGR(!!PRESET_GR[name]);
+    setMerge(PRESET_MERGE[name] !== false);
     if (PRESET_TRAIL[name] !== undefined) {
       S.trail = PRESET_TRAIL[name];
       $('sT').value = S.trail;
       $('vT').textContent = S.trail.toFixed(3);
     }
     accelerations();
-    ctx.fillStyle = '#05060f';
-    ctx.fillRect(0, 0, W, H);
+    ctx.clearRect(0, 0, W, H);
     hint(msg);
   }
 
@@ -498,10 +608,21 @@
   $('sN').addEventListener('change', () => load(currentPreset));
   document.querySelectorAll('[data-preset]').forEach(b =>
     b.addEventListener('click', () => load(b.dataset.preset)));
-  $('bMerge').addEventListener('click', e => {
-    S.merge = !S.merge;
-    e.currentTarget.setAttribute('aria-pressed', String(S.merge));
-  });
+  function setGR(v) {
+    S.gr = v;
+    $('bGR').setAttribute('aria-pressed', String(v));
+  }
+  function setGrid(v) {
+    S.grid = v;
+    $('bGrid').setAttribute('aria-pressed', String(v));
+  }
+  $('bGR').addEventListener('click', () => setGR(!S.gr));
+  $('bGrid').addEventListener('click', () => setGrid(!S.grid));
+  function setMerge(v) {
+    S.merge = v;
+    $('bMerge').setAttribute('aria-pressed', String(v));
+  }
+  $('bMerge').addEventListener('click', () => setMerge(!S.merge));
   $('bPause').addEventListener('click', togglePause);
   function togglePause() {
     S.paused = !S.paused;
@@ -528,16 +649,20 @@
       for (let k = 0; k < S.sub; k++) step(dt);
     }
 
-    // motion blur: fade the previous frame instead of clearing it
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.fillStyle = 'rgba(5, 6, 15, ' + (1 - S.trail).toFixed(3) + ')';
-    ctx.fillRect(0, 0, W, H);
-
+    // background: repainted outright, so nothing accumulates
+    bgc.fillStyle = '#05060f';
+    bgc.fillRect(0, 0, W, H);
     if (starLayer) {
-      ctx.globalAlpha = 0.10;
-      ctx.drawImage(starLayer, 0, 0, W, H);
-      ctx.globalAlpha = 1;
+      bgc.globalAlpha = 0.55;
+      bgc.drawImage(starLayer, 0, 0, W, H);
+      bgc.globalAlpha = 1;
     }
+    if (S.grid) drawGrid();
+
+    // motion blur: fade the body layer toward transparent, never toward a colour
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0, 0, 0, ' + (1 - S.trail).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
 
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < bodies.length; i++) {
