@@ -34,9 +34,6 @@ graphics, embedded control, and the small tools that make the rest less painful.
 - 🔭 Currently working on — **[minidb](https://github.com/akshatdalakoti-stack/minidb)**, a
   database storage engine written from scratch in Go on the standard library alone:
   pager, buffer pool, B-tree indexes, a write-ahead log, and crash recovery.
-- 🌱 Currently learning — systems internals the slow way, by rebuilding them.
-  [mini-redis](https://github.com/akshatdalakoti-stack/mini-redis) speaks the real RESP
-  protocol; minidb puts itself back together after you kill it mid-transaction.
 - 💬 Ask me about — storage engines, Redis internals, N-body integrators, or coaxing
   BirdNET onto an ESP32.
 - 🧩 Puzzles — [LeetCode: dalakoti_0019_akshat](https://leetcode.com/u/dalakoti_0019_akshat/)
