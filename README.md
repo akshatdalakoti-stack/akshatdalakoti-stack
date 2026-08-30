@@ -4,9 +4,7 @@
 
 ### **`Akshat Dalakoti`**
 
-***“Even the very wise cannot see all ends.”***
-
-<sub>— Gandalf, *The Lord of the Rings*</sub>
+***“As far as I’m concerned, destiny can go fuck itself.”***
 
 <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/">
   <img src="https://img.shields.io/badge/▶_launch_the_live_simulation-05060f?style=for-the-badge&labelColor=7c5cff&color=05060f" alt="Launch the live simulation">
