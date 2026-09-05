@@ -32,10 +32,14 @@ R = 165.0                    # outer ring
 LOOP = 9.0                   # seconds for one full cycle
 
 BG = "#05060f"
-GOLD = "#ffd166"
-CYAN = "#4cc9f0"
-VIOLET = "#7c5cff"
-INK = "#e8ecff"
+# A monochrome crimson: the structure and the inscribed figure separate by
+# lightness rather than hue, because there is no second hue to reach for
+# without leaving red. The spark stays near-white so ignition still reads as
+# heat rather than just more red.
+RING = "#ff2d46"      # outer rings, rune band, vertex nodes
+INNER = "#ff6b7d"     # hexagram, spokes, core
+SPINE = "#9e1330"     # the horizontal rule and its ticks
+SPARK = "#fff2f4"     # the arc that races the circumference
 
 TICKS = 60                   # divisions of the rune band
 SAT_R = 44.0                 # flanking satellite arrays
@@ -82,7 +86,7 @@ def hexagram(cx, cy, r, t0, t1):
                        for i in range(3))
         out.append('<polygon points="%s" fill="none" stroke="%s" stroke-width="1.6" '
                    'stroke-linejoin="round"%s>%s</polygon>'
-                   % (pts, CYAN, dashed(per), draw_anim(per, t0 + k * 0.045, t1 + k * 0.045)))
+                   % (pts, INNER, dashed(per), draw_anim(per, t0 + k * 0.045, t1 + k * 0.045)))
     return "".join(out)
 
 
@@ -102,16 +106,16 @@ def rune_band(cx, cy, r, n, t0, t1):
     d = " ".join("M%s %sL%s %s" % (fmt(x0), fmt(y0), fmt(x1), fmt(y1))
                  for x0, y0, x1, y1, _ in segs)
     out.append('<path d="%s" stroke="%s" stroke-width="1.5" fill="none" opacity="0.85"%s>%s</path>'
-               % (d, GOLD, dashed(total), draw_anim(total, t0, t1)))
+               % (d, RING, dashed(total), draw_anim(total, t0, t1)))
     return "".join(out)
 
 
 def array(cx, cy, r, t0, scale=1.0, band_period=90.0, hex_period=140.0):
     """One complete transmutation array, built outward from the centre."""
     g = ['<g>']
-    g.append(circle(cx, cy, r, GOLD, 2.0 * scale, 0.95, dashed(2 * math.pi * r))
+    g.append(circle(cx, cy, r, RING, 2.0 * scale, 0.95, dashed(2 * math.pi * r))
              + draw_anim(2 * math.pi * r, t0, t0 + 0.16) + '</circle>')
-    g.append(circle(cx, cy, r - 10 * scale, GOLD, 1.0 * scale, 0.45,
+    g.append(circle(cx, cy, r - 10 * scale, RING, 1.0 * scale, 0.58,
                     dashed(2 * math.pi * (r - 10 * scale)))
              + draw_anim(2 * math.pi * (r - 10 * scale), t0 + 0.04, t0 + 0.20) + '</circle>')
 
@@ -119,13 +123,13 @@ def array(cx, cy, r, t0, scale=1.0, band_period=90.0, hex_period=140.0):
              + spin(cx, cy, band_period) + '</g>')
 
     ri = r * 0.60
-    g.append(circle(cx, cy, ri, GOLD, 1.4 * scale, 0.75, dashed(2 * math.pi * ri))
+    g.append(circle(cx, cy, ri, RING, 1.4 * scale, 0.75, dashed(2 * math.pi * ri))
              + draw_anim(2 * math.pi * ri, t0 + 0.14, t0 + 0.30) + '</circle>')
     g.append('<g>' + hexagram(cx, cy, ri, t0 + 0.22, t0 + 0.44)
              + spin(cx, cy, hex_period, reverse=True) + '</g>')
 
     rc = r * 0.22
-    g.append(circle(cx, cy, rc, CYAN, 1.4 * scale, 0.9, dashed(2 * math.pi * rc))
+    g.append(circle(cx, cy, rc, INNER, 1.4 * scale, 0.9, dashed(2 * math.pi * rc))
              + draw_anim(2 * math.pi * rc, t0 + 0.36, t0 + 0.48) + '</circle>')
 
     # spokes and vertex nodes
@@ -136,8 +140,8 @@ def array(cx, cy, r, t0, scale=1.0, band_period=90.0, hex_period=140.0):
         spokes.append("M%s %sL%s %s" % (fmt(cx + rc * math.cos(a)), fmt(cy + rc * math.sin(a)),
                                         fmt(x), fmt(y)))
         per += ri - rc
-    g.append('<path d="%s" stroke="%s" stroke-width="1" fill="none" opacity="0.5"%s>%s</path>'
-             % (" ".join(spokes), CYAN, dashed(per), draw_anim(per, t0 + 0.40, t0 + 0.54)))
+    g.append('<path d="%s" stroke="%s" stroke-width="1" fill="none" opacity="0.62"%s>%s</path>'
+             % (" ".join(spokes), INNER, dashed(per), draw_anim(per, t0 + 0.40, t0 + 0.54)))
     for k in range(6):
         a = k * math.pi / 3
         x, y = cx + ri * math.cos(a), cy + ri * math.sin(a)
@@ -145,7 +149,7 @@ def array(cx, cy, r, t0, scale=1.0, band_period=90.0, hex_period=140.0):
                  'stroke-width="1.2" opacity="0">'
                  '<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;%s;%s;0.93;1" '
                  'dur="%ss" repeatCount="indefinite"/></circle>'
-                 % (fmt(x), fmt(y), fmt(5 * scale), GOLD, GOLD,
+                 % (fmt(x), fmt(y), fmt(5 * scale), RING, RING,
                     fmt(t0 + 0.46), fmt(t0 + 0.56), fmt(LOOP)))
 
     # the arc that races the circumference, then the flare
@@ -157,7 +161,7 @@ def array(cx, cy, r, t0, scale=1.0, band_period=90.0, hex_period=140.0):
              '<animate attributeName="opacity" values="0;0;1;1;0;0" '
              'keyTimes="0;%s;%s;%s;%s;1" dur="%ss" repeatCount="indefinite"/>'
              '</circle>'
-             % (fmt(cx), fmt(cy), fmt(r), INK, fmt(2.6 * scale), fmt(c * 0.16), fmt(c),
+             % (fmt(cx), fmt(cy), fmt(r), SPARK, fmt(2.6 * scale), fmt(c * 0.16), fmt(c),
                 fmt(-c), fmt(t0 * LOOP), fmt(LOOP * 0.34),
                 fmt(t0 + 0.56), fmt(t0 + 0.60), fmt(t0 + 0.86), fmt(t0 + 0.92), fmt(LOOP)))
     g.append('</g>')
@@ -178,15 +182,21 @@ def main():
         ticks.append("M%s %sL%s %s" % (fmt(x), fmt(CY - h), fmt(x), fmt(CY + h)))
         total += 2 * h
     parts.append('<path d="%s" stroke="%s" stroke-width="1" fill="none" opacity="0.35"%s>%s</path>'
-                 % (" ".join(ticks), VIOLET, dashed(total), draw_anim(total, 0.02, 0.30)))
+                 % (" ".join(ticks), SPINE, dashed(total), draw_anim(total, 0.02, 0.30)))
     for x0, x1 in ((40, CX - R - 30), (CX + R + 30, W - 40)):
         parts.append('<path d="M%s %sL%s %s" stroke="%s" stroke-width="1" opacity="0.30"%s>%s</path>'
-                     % (fmt(x0), fmt(CY), fmt(x1), fmt(CY), VIOLET,
+                     % (fmt(x0), fmt(CY), fmt(x1), fmt(CY), SPINE,
                         dashed(x1 - x0), draw_anim(x1 - x0, 0.0, 0.26)))
 
     parts.append(array(CX - R - 30 - 96, CY, SAT_R, 0.06, 0.62, 70.0, 110.0))
     parts.append(array(CX + R + 30 + 96, CY, SAT_R, 0.10, 0.62, 82.0, 96.0))
     parts.append(array(CX, CY, R, 0.0, 1.0))
+
+    # light the array actually throws, breathing on the same loop
+    halo = ('<circle cx="%s" cy="%s" r="%s" fill="url(#halo)" opacity="0">'
+            '<animate attributeName="opacity" values="0;0;1;0.75;1;0" '
+            'keyTimes="0;0.30;0.60;0.74;0.88;1" dur="%ss" repeatCount="indefinite"/>'
+            '</circle>') % (fmt(CX), fmt(CY), fmt(R * 2.1), fmt(LOOP))
 
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" '
@@ -194,13 +204,13 @@ def main():
         'aria-label="An alchemical transmutation circle drawing itself stroke by '
         'stroke, its rune band and inscribed hexagram counter-rotating, then '
         'igniting as a bright arc races around the circumference.">\n'
-        '<defs><filter id="g" x="-25%%" y="-25%%" width="150%%" height="150%%">'
-        '<feGaussianBlur stdDeviation="3.2" result="b"/>'
+        '<defs><radialGradient id="halo"><stop offset="0" stop-color="%s" stop-opacity="0.20"/><stop offset="0.55" stop-color="%s" stop-opacity="0.06"/><stop offset="1" stop-color="%s" stop-opacity="0"/></radialGradient><filter id="g" x="-25%%" y="-25%%" width="150%%" height="150%%">'
+        '<feGaussianBlur stdDeviation="4.0" result="b"/>'
         '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'
         '</filter></defs>\n'
-        '<rect width="1200" height="400" fill="%s"/>\n'
+        '<rect width="1200" height="400" fill="%s"/>\n%s\n'
         '<g filter="url(#g)" stroke-linecap="round">\n%s\n</g>\n</svg>\n'
-    ) % (BG, "\n".join(parts))
+    ) % (RING, RING, RING, BG, halo, "\n".join(parts))
 
     with open("assets/hero.svg", "w", encoding="utf-8") as fh:
         fh.write(svg)

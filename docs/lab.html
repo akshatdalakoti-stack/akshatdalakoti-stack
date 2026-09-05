@@ -8,9 +8,9 @@
 <meta name="color-scheme" content="dark">
 <style>
   :root {
-    --bg: #05060f; --violet: #7c5cff; --cyan: #4cc9f0; --gold: #ffd166;
+    --bg: #05060f; --blood: #9e1330; --rose: #ff6b7d; --crimson: #ff2d46;
     --ink: #e8ecff; --muted: #8b93b8;
-    --panel: rgba(14, 16, 34, 0.72); --line: rgba(124, 92, 255, 0.22);
+    --panel: rgba(14, 16, 34, 0.72); --line: rgba(255, 45, 70, 0.26);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -30,7 +30,7 @@
   #title { top: 18px; left: 18px; padding: 14px 18px; max-width: 360px; }
   #title h1 {
     margin: 0; font-size: 16px; letter-spacing: 0.24em; text-transform: uppercase;
-    background: linear-gradient(92deg, var(--violet), var(--cyan) 55%, var(--gold));
+    background: linear-gradient(92deg, var(--blood), var(--rose) 55%, var(--crimson));
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   #title p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
@@ -47,16 +47,16 @@
   }
   button {
     font: 11px ui-monospace, Consolas, monospace; letter-spacing: 0.06em;
-    color: var(--ink); background: rgba(124, 92, 255, 0.14);
+    color: var(--ink); background: rgba(255, 45, 70, 0.14);
     border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
     cursor: pointer; transition: background .15s, border-color .15s, transform .1s;
     white-space: nowrap;
   }
-  button:hover { background: rgba(76, 201, 240, 0.22); border-color: var(--cyan); }
+  button:hover { background: rgba(255, 107, 125, 0.24); border-color: var(--rose); }
   button:active { transform: translateY(1px); }
-  button[aria-pressed="true"] { background: rgba(76,201,240,.30); border-color: var(--cyan); }
+  button[aria-pressed="true"] { background: rgba(255,107,125,.30); border-color: var(--rose); }
   .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
-  a.back { color: var(--gold); text-decoration: none; font: 11px ui-monospace, Consolas, monospace; }
+  a.back { color: var(--crimson); text-decoration: none; font: 11px ui-monospace, Consolas, monospace; }
   a.back:hover { text-decoration: underline; }
 
   @media (max-width: 860px) {
@@ -163,7 +163,7 @@
         ctx.stroke();
       }
       if (h > 0 && h < N) {
-        ctx.fillStyle = '#fff'; ctx.shadowBlur = 16; ctx.shadowColor = '#ffd166';
+        ctx.fillStyle = '#fff'; ctx.shadowBlur = 16; ctx.shadowColor = '#ff2d46';
         ctx.beginPath(); ctx.arc(this.pts[(h - 1) * 2], this.pts[(h - 1) * 2 + 1], 4, 0, 6.283); ctx.fill();
         ctx.shadowBlur = 0;
       }
@@ -207,7 +207,7 @@
         b.life += dt;
         const a = Math.max(0, 1 - b.life / 1.5);
         if (a <= 0) continue;
-        for (const pass of [[3.4, 0.10, '#7c5cff'], [1.7, 0.30, '#4cc9f0'], [0, 1, '#e8ecff']]) {
+        for (const pass of [[3.4, 0.10, '#9e1330'], [1.7, 0.30, '#ff2d46'], [0, 1, '#fff2f4']]) {
           ctx.strokeStyle = pass[2]; ctx.globalAlpha = a * pass[1];
           ctx.beginPath();
           for (const s of b.segs) { ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); }

@@ -9,13 +9,13 @@
 <style>
   :root {
     --bg: #05060f;
-    --violet: #7c5cff;
-    --cyan: #4cc9f0;
-    --gold: #ffd166;
+    --blood: #9e1330;
+    --rose: #ff6b7d;
+    --crimson: #ff2d46;
     --ink: #e8ecff;
     --muted: #8b93b8;
     --panel: rgba(14, 16, 34, 0.72);
-    --line: rgba(124, 92, 255, 0.22);
+    --line: rgba(255, 45, 70, 0.26);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -35,13 +35,13 @@
   #title { top: 18px; left: 18px; padding: 14px 18px; max-width: 340px; }
   #title h1 {
     margin: 0; font-size: 17px; letter-spacing: 0.30em; text-transform: uppercase;
-    background: linear-gradient(92deg, var(--gold), var(--cyan) 70%);
+    background: linear-gradient(92deg, var(--crimson), var(--rose) 70%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   #title p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
   #title kbd {
     font: 11px ui-monospace, Consolas, monospace;
-    background: rgba(255,209,102,.14); border: 1px solid var(--line);
+    background: rgba(255,45,70,.14); border: 1px solid var(--line);
     border-radius: 5px; padding: 1px 5px; color: var(--ink);
   }
   #hud {
@@ -61,32 +61,32 @@
     text-transform: uppercase; color: var(--muted);
     display: flex; justify-content: space-between; gap: 10px;
   }
-  .ctl label span { color: var(--gold); }
+  .ctl label span { color: var(--crimson); }
   input[type=range] {
     -webkit-appearance: none; appearance: none; width: 100%; height: 3px;
-    border-radius: 2px; background: rgba(255,209,102,.3); outline: none;
+    border-radius: 2px; background: rgba(255,45,70,.3); outline: none;
   }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
-    background: var(--gold); cursor: pointer; box-shadow: 0 0 10px var(--gold);
+    background: var(--crimson); cursor: pointer; box-shadow: 0 0 10px var(--crimson);
   }
   input[type=range]::-moz-range-thumb {
     width: 13px; height: 13px; border: 0; border-radius: 50%;
-    background: var(--gold); cursor: pointer; box-shadow: 0 0 10px var(--gold);
+    background: var(--crimson); cursor: pointer; box-shadow: 0 0 10px var(--crimson);
   }
   .sep { width: 1px; align-self: stretch; background: var(--line); }
   .btns { display: flex; gap: 7px; flex-wrap: wrap; }
   button {
     font: 11px ui-monospace, Consolas, monospace; letter-spacing: 0.06em;
-    color: var(--ink); background: rgba(255,209,102,.12);
+    color: var(--ink); background: rgba(255,45,70,.12);
     border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px;
     cursor: pointer; transition: background .15s, border-color .15s, transform .1s;
     white-space: nowrap;
   }
-  button:hover { background: rgba(76,201,240,.22); border-color: var(--cyan); }
+  button:hover { background: rgba(255,107,125,.22); border-color: var(--rose); }
   button:active { transform: translateY(1px); }
-  button[aria-pressed="true"] { background: rgba(76,201,240,.28); border-color: var(--cyan); }
-  a.more { color: var(--cyan); text-decoration: none; border-bottom: 1px dotted var(--cyan); }
+  button[aria-pressed="true"] { background: rgba(255,107,125,.28); border-color: var(--rose); }
+  a.more { color: var(--rose); text-decoration: none; border-bottom: 1px dotted var(--rose); }
 
   #hint {
     position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 3;
@@ -139,7 +139,7 @@
   </div>
   <div class="sep"></div>
   <div class="btns">
-    <button id="bPal">palette: gold</button>
+    <button id="bPal">palette: crimson</button>
     <button id="bGlow" aria-pressed="true">glow</button>
     <button id="bAuto" aria-pressed="true">auto&#8209;ignite</button>
   </div>
@@ -156,10 +156,13 @@
   const $ = id => document.getElementById(id);
   const cv = $('c'), ctx = cv.getContext('2d');
 
+  // Crimson is monochrome on purpose: ring and inscribed figure separate by
+  // lightness, since there is no second hue to reach for without leaving red.
+  // The spark stays near-white so ignition reads as heat, not just more red.
   const PALETTES = {
-    gold:    { ring: '#ffd166', inner: '#4cc9f0', spark: '#ffffff', halo: '255,209,102' },
+    crimson: { ring: '#ff2d46', inner: '#ff6b7d', spark: '#fff2f4', halo: '255,45,70' },
+    ember:   { ring: '#ffd166', inner: '#4cc9f0', spark: '#ffffff', halo: '255,209,102' },
     verdant: { ring: '#8bffa8', inner: '#eaff6b', spark: '#ffffff', halo: '120,255,160' },
-    crimson: { ring: '#ff5e6c', inner: '#ffb36b', spark: '#fff0f0', halo: '255,94,108' },
     ice:     { ring: '#9ad8ff', inner: '#c9b4ff', spark: '#ffffff', halo: '154,216,255' }
   };
   const NAMES = Object.keys(PALETTES);

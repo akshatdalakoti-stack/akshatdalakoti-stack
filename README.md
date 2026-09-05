@@ -7,7 +7,7 @@
 ***“As far as I’m concerned, destiny can go fuck itself.”***
 
 <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/">
-  <img src="https://img.shields.io/badge/▶_run_it_live-05060f?style=for-the-badge&labelColor=7c5cff&color=05060f" alt="Run the live version">
+  <img src="https://img.shields.io/badge/▶_run_it_live-05060f?style=for-the-badge&labelColor=ff2d46&color=05060f" alt="Run the live version">
 </a>
 
 <sub>
