@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Orbital — a live N-body playground</title>
-<meta name="description" content="A real-time gravitational N-body simulation. Drag to slingshot new worlds into orbit.">
+<title>Memento — a live ASCII skull</title>
+<meta name="description" content="A skull raymarched from signed distance fields into a character grid, sixty times a second. Every frame is real text — select it, copy it, paste it anywhere.">
 <meta name="color-scheme" content="dark">
 <style>
   :root {
@@ -12,11 +12,23 @@
     --violet: #7c5cff;
     --cyan: #4cc9f0;
     --gold: #ffd166;
+    --pink: #ff8fd1;
     --ink: #e8ecff;
     --muted: #8b93b8;
     --panel: rgba(14, 16, 34, 0.72);
     --line: rgba(124, 92, 255, 0.22);
+    --fs: 13px;
+    --dim: #2f3766;
+    --lit: #cfd8ff;
+    --emb: #ff8a3c;
+    --glow: rgba(124, 92, 255, 0.55);
   }
+  /* the four palettes only ever move these three colours plus the glow */
+  body[data-pal="bone"]  { --dim:#3a3a52; --lit:#f3ece0; --emb:#ff8a3c; --glow:rgba(255,209,102,.4) }
+  body[data-pal="synth"] { --dim:#2f3766; --lit:#cfe4ff; --emb:#ff5ea8; --glow:rgba(124,92,255,.55) }
+  body[data-pal="phos"]  { --dim:#12401f; --lit:#8bffa8; --emb:#eaff6b; --glow:rgba(60,255,120,.35) }
+  body[data-pal="ash"]   { --dim:#26262b; --lit:#e6e6e8; --emb:#e6e6e8; --glow:rgba(255,255,255,.18) }
+
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
@@ -26,13 +38,47 @@
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
   }
-  canvas { display: block; position: fixed; inset: 0; touch-action: none; cursor: crosshair; }
-  #bg { z-index: 0; }
-  #sky { z-index: 1; }
-  .panel, #hint { z-index: 3; }
 
+  /* ------------------------------------------------------- character grid */
+  #stage { position: fixed; inset: 0; z-index: 0; }
+  pre.layer {
+    position: absolute; inset: 0; margin: 0;
+    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    font-size: var(--fs);
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: pre;
+    overflow: hidden;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+  }
+  /* the dim layer is the only one that takes pointer events, so a drag to
+     rotate never starts a text selection -- but ctrl+A still copies the skull */
+  #dim { color: var(--dim); z-index: 1; }
+  #lit { color: var(--lit); z-index: 2; pointer-events: none;
+         text-shadow: 0 0 6px var(--glow), 0 0 18px var(--glow); }
+  #emb { color: var(--emb); z-index: 3; pointer-events: none;
+         text-shadow: 0 0 7px var(--emb), 0 0 22px var(--emb); }
+  body.noselect #dim { user-select: none; -webkit-user-select: none; }
+  #stage.grab { cursor: grab; }
+  #stage.grabbing { cursor: grabbing; }
+
+  /* --------------------------------------------------------------- crt */
+  #crt {
+    position: fixed; inset: 0; z-index: 4; pointer-events: none;
+    background:
+      repeating-linear-gradient(to bottom,
+        rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+        rgba(0,0,0,0.22) 3px, rgba(0,0,0,0.22) 4px),
+      radial-gradient(ellipse at center,
+        rgba(0,0,0,0) 42%, rgba(5,6,15,0.55) 88%, rgba(5,6,15,0.92) 100%);
+    mix-blend-mode: multiply;
+  }
+  body.flat #crt { display: none; }
+
+  /* ------------------------------------------------------------- panels */
   .panel {
-    position: fixed;
+    position: fixed; z-index: 6;
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 14px;
@@ -40,48 +86,35 @@
     -webkit-backdrop-filter: blur(14px);
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
   }
-
-  /* ---------------------------------------------------------- title card */
-  #title { top: 18px; left: 18px; padding: 14px 18px; max-width: 330px; }
+  #title { top: 18px; left: 18px; padding: 14px 18px; max-width: 340px; }
   #title h1 {
-    margin: 0;
-    font-size: 17px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    margin: 0; font-size: 17px; letter-spacing: 0.34em; text-transform: uppercase;
     background: linear-gradient(92deg, var(--violet), var(--cyan) 55%, var(--gold));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   #title p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
   #title kbd {
-    font: 11px ui-monospace, "SF Mono", Consolas, monospace;
+    font: 11px ui-monospace, Consolas, monospace;
     background: rgba(124, 92, 255, 0.16);
-    border: 1px solid var(--line);
-    border-radius: 5px;
-    padding: 1px 5px;
-    color: var(--ink);
+    border: 1px solid var(--line); border-radius: 5px;
+    padding: 1px 5px; color: var(--ink);
   }
 
-  /* --------------------------------------------------------------- HUD */
   #hud {
     top: 18px; right: 18px; padding: 12px 14px;
-    font: 11.5px/1.7 ui-monospace, "SF Mono", Consolas, monospace;
-    color: var(--muted);
-    min-width: 178px;
+    font: 11.5px/1.7 ui-monospace, Consolas, monospace;
+    color: var(--muted); min-width: 176px;
   }
   #hud b { color: var(--ink); font-weight: 600; float: right; margin-left: 14px; }
-  #hud .warn { color: var(--gold); }
 
-  /* ----------------------------------------------------------- controls */
   #controls {
     bottom: 18px; left: 50%; transform: translateX(-50%);
     padding: 12px 16px;
-    display: flex; align-items: center; gap: 18px;
+    display: flex; align-items: center; gap: 16px;
     flex-wrap: wrap; justify-content: center;
-    max-width: min(940px, calc(100vw - 36px));
+    max-width: min(980px, calc(100vw - 36px));
   }
-  .ctl { display: flex; flex-direction: column; gap: 4px; min-width: 104px; }
+  .ctl { display: flex; flex-direction: column; gap: 4px; min-width: 100px; }
   .ctl label {
     font: 10px/1 ui-monospace, Consolas, monospace;
     letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
@@ -90,8 +123,8 @@
   .ctl label span { color: var(--cyan); }
   input[type=range] {
     -webkit-appearance: none; appearance: none;
-    width: 100%; height: 3px; border-radius: 2px; background: rgba(124,92,255,.3);
-    outline: none;
+    width: 100%; height: 3px; border-radius: 2px;
+    background: rgba(124,92,255,.3); outline: none;
   }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
@@ -104,14 +137,10 @@
   .sep { width: 1px; align-self: stretch; background: var(--line); }
   .btns { display: flex; gap: 7px; flex-wrap: wrap; }
   button {
-    font: 11px ui-monospace, Consolas, monospace;
-    letter-spacing: 0.06em;
-    color: var(--ink);
-    background: rgba(124, 92, 255, 0.14);
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    padding: 7px 11px;
-    cursor: pointer;
+    font: 11px ui-monospace, Consolas, monospace; letter-spacing: 0.06em;
+    color: var(--ink); background: rgba(124, 92, 255, 0.14);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 11px; cursor: pointer;
     transition: background .15s, border-color .15s, transform .1s;
     white-space: nowrap;
   }
@@ -120,605 +149,587 @@
   button[aria-pressed="true"] { background: rgba(76,201,240,.28); border-color: var(--cyan); }
 
   #hint {
-    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
-    color: var(--muted); font-size: 12px; pointer-events: none;
+    position: fixed; bottom: 104px; left: 50%; transform: translateX(-50%);
+    z-index: 6; color: var(--muted); font-size: 12px; pointer-events: none;
     opacity: 0; transition: opacity .4s; text-align: center;
+    max-width: min(680px, calc(100vw - 40px));
+    text-shadow: 0 2px 12px #05060f, 0 0 4px #05060f;
   }
   #hint.show { opacity: 1; }
+  #hint em { color: var(--gold); font-style: normal; }
 
-  @media (max-width: 760px) {
+  #dead { position: fixed; inset: 0; z-index: 9; display: none;
+          place-content: center; justify-items: center; align-content: center;
+          padding: 28px; text-align: center; }
+  #dead.show { display: grid; }
+  #dead h2 { margin: 0 0 8px; font-size: 18px; color: var(--gold); }
+  #dead p { margin: 0; color: var(--muted); max-width: 440px; }
+  #dead a { color: var(--cyan); }
+
+  @media (max-width: 900px) {
     #title { max-width: none; right: 18px; }
     #title p { display: none; }
     #hud { display: none; }
-    #controls { gap: 12px; padding: 10px 12px; }
     .sep { display: none; }
+    #controls { gap: 11px; padding: 10px 12px; }
+    #hint { bottom: 132px; }
   }
-  @media (prefers-reduced-motion: reduce) { #hint { transition: none; } }
 </style>
 </head>
-<body>
-<canvas id="bg" aria-hidden="true"></canvas>
-<canvas id="sky" aria-label="Live gravitational N-body simulation"></canvas>
+<body data-pal="synth">
+
+<div id="stage" class="grab">
+  <pre class="layer" id="dim" aria-label="A rotating skull drawn in ASCII characters"></pre>
+  <pre class="layer" id="lit" aria-hidden="true"></pre>
+  <pre class="layer" id="emb" aria-hidden="true"></pre>
+</div>
+<div id="crt"></div>
+<canvas id="gl" width="8" height="8" style="display:none"></canvas>
 
 <div class="panel" id="title">
-  <h1>Orbital</h1>
-  <p>A real gravitational <em>N</em>-body integration, running live.
-     <kbd>drag</kbd> to slingshot a world &middot; <kbd>hold</kbd> to pull &middot;
-     <kbd>space</kbd> pause &middot; <kbd>R</kbd> reset</p>
+  <h1>Memento</h1>
+  <p>A skull raymarched through signed distance fields, resolved onto a grid of
+     characters sixty times a second. Every frame is real text.
+     <kbd>drag</kbd> turn it &middot; <kbd>scroll</kbd> zoom &middot;
+     <kbd>space</kbd> spin &middot; <kbd>C</kbd> copy the frame</p>
 </div>
 
 <div class="panel" id="hud">
-  <div>bodies <b id="hBodies">0</b></div>
+  <div>grid <b id="hGrid">—</b></div>
+  <div>glyphs <b id="hCells">0</b></div>
   <div>fps <b id="hFps">0</b></div>
-  <div>kinetic <b id="hKe">0</b></div>
-  <div>potential <b id="hPe">0</b></div>
-  <div>total E <b id="hTe">0</b></div>
+  <div>rays/frame <b id="hRays">0</b></div>
 </div>
 
 <div id="hint"></div>
 
+<div id="dead">
+  <h2>This one needs WebGL</h2>
+  <p>The skull is raymarched on the GPU before it is turned into characters,
+     so the page needs WebGL with hardware acceleration switched on.
+     <br><br>Source: <a href="https://github.com/akshatdalakoti-stack/akshatdalakoti-stack">github.com/akshatdalakoti-stack</a></p>
+</div>
+
 <div class="panel" id="controls">
   <div class="ctl">
-    <label>gravity <span id="vG">1.00</span></label>
-    <input type="range" id="sG" min="0" max="3" step="0.01" value="1">
+    <label>type size <span id="vFs">13</span></label>
+    <input type="range" id="sFs" min="6" max="26" step="1" value="13">
   </div>
   <div class="ctl">
-    <label>trails <span id="vT">0.930</span></label>
-    <input type="range" id="sT" min="0" max="0.985" step="0.005" value="0.93">
+    <label>contrast <span id="vGa">1.00</span></label>
+    <input type="range" id="sGa" min="0.4" max="2.2" step="0.02" value="1">
   </div>
   <div class="ctl">
-    <label>bodies <span id="vN">160</span></label>
-    <input type="range" id="sN" min="3" max="420" step="1" value="160">
+    <label>spin <span id="vSp">0.25</span></label>
+    <input type="range" id="sSp" min="0" max="1.2" step="0.01" value="0.25">
   </div>
   <div class="sep"></div>
   <div class="btns">
-    <button data-preset="eight">figure&#8209;8</button>
-    <button data-preset="disc">disc</button>
-    <button data-preset="binary">binary</button>
-    <button data-preset="collision">collision</button>
-    <button data-preset="collapse">collapse</button>
-    <button data-preset="trojans">trojans</button>
-    <button data-preset="precession">precession</button>
+    <button id="bRamp">ramp: soft</button>
+    <button id="bPal">palette: synth</button>
+    <button id="bEmber" aria-pressed="false">embers</button>
+    <button id="bCrt" aria-pressed="true">crt</button>
   </div>
   <div class="sep"></div>
   <div class="btns">
-    <button id="bGrid" aria-pressed="false">spacetime</button>
-    <button id="bGR" aria-pressed="false">relativity</button>
-    <button id="bMerge" aria-pressed="true">merge</button>
-    <button id="bPause">pause</button>
+    <button data-view="face">face</button>
+    <button data-view="three">¾</button>
+    <button data-view="side">profile</button>
+    <button id="bSpin" aria-pressed="true">spin</button>
+    <button id="bCopy">copy</button>
   </div>
 </div>
 
 <script>
+/*
+  Memento -- a skull, live, in characters.
+
+  There is no model file here and no texture. The skull is a signed distance
+  function: a braincase and a facial mass blended together, a brow ridge and
+  two zygomatic arches added on, the orbits and the nasal aperture carved back
+  out, a dental arch built by repeating one tooth around a polar angle, and a
+  mandible hinged at the condyles so the jaw can swing. A ray is fired per
+  character cell and walked until it lands on that surface.
+
+  The trick that makes this cheap: the render target is the character grid
+  itself, so a full screen is only ten or twenty thousand pixels. That is few
+  enough that the shader can afford a hundred march steps plus five-tap ambient
+  occlusion per ray and still finish in well under a millisecond -- an
+  unreasonable amount of lighting for an image that ends up as punctuation.
+
+  The luminance that comes back is quantised against a ramp of glyphs ordered
+  by ink coverage, and printed into three stacked <pre> layers: dim for the
+  falloff, bright for the highlights, warm for whatever is burning in the eye
+  sockets. They are real text nodes, so the skull can be selected and copied
+  straight out of the page.
+*/
 (() => {
   'use strict';
 
-  // Two layers. The body layer keeps its own history (that is what makes the
-  // trails), so anything redrawn identically every frame would accumulate there
-  // until it saturated -- hence the starfield and the grid live on their own
-  // opaque layer that is simply repainted.
-  const cv = document.getElementById('sky');
-  const ctx = cv.getContext('2d');
-  const bg = document.getElementById('bg');
-  const bgc = bg.getContext('2d', { alpha: false });
-  const PALETTE = ['#7c5cff', '#4cc9f0', '#ffd166', '#ff8fd1', '#b8c6ff'];
-  // draw order weights the cosmic three; the accents stay rare
-  const WEIGHTED = [0, 0, 0, 1, 1, 1, 2, 2, 3, 4].map(i => PALETTE[i]);
-
-  let W = 0, H = 0, DPR = 1;
-  function resize() {
-    DPR = Math.min(devicePixelRatio || 1, 2);
-    W = innerWidth; H = innerHeight;
-    for (const c of [bg, cv]) {
-      c.width = Math.round(W * DPR);
-      c.height = Math.round(H * DPR);
-      c.style.width = W + 'px';
-      c.style.height = H + 'px';
-    }
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    bgc.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    makeStars();
-  }
-
-  /* ------------------------------------------------------ glow sprites */
-  // Pre-rendered radial gradients: far cheaper per frame than shadowBlur.
-  const sprites = new Map();
-  function sprite(colour) {
-    let s = sprites.get(colour);
-    if (s) return s;
-    const R = 64, c = document.createElement('canvas');
-    c.width = c.height = R * 2;
-    const g = c.getContext('2d').createRadialGradient(R, R, 0, R, R, R);
-    g.addColorStop(0.00, '#ffffff');
-    g.addColorStop(0.16, colour);
-    g.addColorStop(0.42, colour + '55');
-    g.addColorStop(1.00, colour + '00');
-    const cc = c.getContext('2d');
-    cc.fillStyle = g;
-    cc.fillRect(0, 0, R * 2, R * 2);
-    sprites.set(colour, c);
-    return c;
-  }
-
-  /* ------------------------------------------------- warped spacetime */
-  // Every lattice node is displaced toward each mass, so the grid sags into
-  // the wells the bodies are genuinely falling down. Only the heavy bodies
-  // bend it, which keeps this cheap enough to redraw every frame.
-  let wx = 0, wy = 0;
-  function drawGrid() {
-    const heavy = bodies.filter(b => b.m > 6)
-                        .sort((a, b) => b.m - a.m).slice(0, 12);
-    if (!heavy.length) return;
-    const STEP = 48, FINE = 10;
-    const warp = (x, y) => {
-      wx = x; wy = y;
-      for (let i = 0; i < heavy.length; i++) {
-        const b = heavy[i];
-        const ox = x - b.x, oy = y - b.y;
-        const d = Math.sqrt(ox * ox + oy * oy) + 24;
-        let pull = 46 * Math.sqrt(b.m) / d;
-        if (pull > d * 0.7) pull = d * 0.7;
-        wx -= ox / d * pull;
-        wy -= oy / d * pull;
-      }
-    };
-    bgc.strokeStyle = 'rgba(124, 92, 255, 0.24)';
-    bgc.lineWidth = 1;
-    bgc.beginPath();
-    for (let y = -STEP; y <= H + STEP; y += STEP) {
-      let first = true;
-      for (let x = -STEP; x <= W + STEP; x += FINE) {
-        warp(x, y);
-        if (first) { bgc.moveTo(wx, wy); first = false; } else bgc.lineTo(wx, wy);
-      }
-    }
-    for (let x = -STEP; x <= W + STEP; x += STEP) {
-      let first = true;
-      for (let y = -STEP; y <= H + STEP; y += FINE) {
-        warp(x, y);
-        if (first) { bgc.moveTo(wx, wy); first = false; } else bgc.lineTo(wx, wy);
-      }
-    }
-    bgc.stroke();
-  }
-
-  /* ----------------------------------------------------------- starfield */
-  let starLayer = null;
-  function makeStars() {
-    starLayer = document.createElement('canvas');
-    starLayer.width = cv.width; starLayer.height = cv.height;
-    const c = starLayer.getContext('2d');
-    c.setTransform(DPR, 0, 0, DPR, 0, 0);
-    for (let i = 0; i < Math.round(W * H / 5200); i++) {
-      const r = 0.3 + Math.random() * 1.0;
-      c.globalAlpha = 0.15 + Math.random() * 0.5;
-      c.fillStyle = '#dfe8ff';
-      c.beginPath();
-      c.arc(Math.random() * W, Math.random() * H, r, 0, 6.2832);
-      c.fill();
-    }
-    c.globalAlpha = 1;
-  }
-
-  /* ------------------------------------------------------------- physics */
-  const S = {
-    G: 1, trail: 0.93, n: 160, merge: true, paused: false,
-    grid: false, gr: false,
-    // Apsidal advance per orbit is 2*pi*rs^2/(a(1-e^2))^2, so rs sets how
-    // fast the rosette turns. Around 34 gives ~45 degrees per orbit: clearly
-    // visible, still a perturbation. Much larger and orbits plunge instead.
-    rs: 34,
-    eps2: 90,          // Plummer softening, keeps close encounters finite
-    sub: 2,            // integration substeps per animation frame
-    dt: 0.85
-  };
-  let bodies = [];
-  const rOf = m => Math.max(1.1, Math.cbrt(m) * 1.55);
-
-  function body(x, y, vx, vy, m, colour) {
-    return { x, y, vx, vy, m, r: rOf(m), ax: 0, ay: 0,
-             c: colour || WEIGHTED[(Math.random() * WEIGHTED.length) | 0] };
-  }
-
-  function accelerations() {
-    const n = bodies.length, G = S.G, eps2 = S.eps2;
-    const gr = S.gr, rs2 = S.rs * S.rs;
-    for (let i = 0; i < n; i++) { bodies[i].ax = 0; bodies[i].ay = 0; }
-    for (let i = 0; i < n; i++) {
-      const a = bodies[i];
-      for (let j = i + 1; j < n; j++) {
-        const b = bodies[j];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d2 = dx * dx + dy * dy + eps2;
-        let inv = G / (d2 * Math.sqrt(d2));     // 1/r^3 with softening
-        // Schwarzschild's extra 1/r^4 term: the same correction that makes
-        // Mercury's perihelion creep, exaggerated so you can watch it happen.
-        if (gr) inv *= Math.min(1 + rs2 / d2, 6);
-        const fa = inv * b.m, fb = inv * a.m;
-        a.ax += dx * fa; a.ay += dy * fa;
-        b.ax -= dx * fb; b.ay -= dy * fb;
-      }
-    }
-    // the pointer acts as an invisible mass while held down
-    if (ptr.hold && !ptr.dragging) {
-      const M = ptr.repel ? -9000 : 9000;
-      for (let i = 0; i < n; i++) {
-        const a = bodies[i];
-        const dx = ptr.x - a.x, dy = ptr.y - a.y;
-        const d2 = dx * dx + dy * dy + 900;
-        const inv = S.G * M / (d2 * Math.sqrt(d2));
-        a.ax += dx * inv; a.ay += dy * inv;
-      }
-    }
-  }
-
-  function step(dt) {
-    // velocity Verlet: kick, drift, recompute, kick
-    const n = bodies.length, h = dt * 0.5;
-    for (let i = 0; i < n; i++) {
-      const b = bodies[i];
-      b.vx += b.ax * h; b.vy += b.ay * h;
-      b.x += b.vx * dt; b.y += b.vy * dt;
-    }
-    accelerations();
-    for (let i = 0; i < n; i++) {
-      const b = bodies[i];
-      b.vx += b.ax * h; b.vy += b.ay * h;
-    }
-    if (S.merge) collide();
-  }
-
-  function collide() {
-    for (let i = 0; i < bodies.length; i++) {
-      const a = bodies[i];
-      for (let j = i + 1; j < bodies.length; j++) {
-        const b = bodies[j];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const rr = a.r + b.r;
-        if (dx * dx + dy * dy < rr * rr * 0.5) {
-          // perfectly inelastic: conserve mass and linear momentum
-          const M = a.m + b.m;
-          a.x = (a.x * a.m + b.x * b.m) / M;
-          a.y = (a.y * a.m + b.y * b.m) / M;
-          a.vx = (a.vx * a.m + b.vx * b.m) / M;
-          a.vy = (a.vy * a.m + b.vy * b.m) / M;
-          if (b.m > a.m) a.c = b.c;
-          a.m = M; a.r = rOf(M);
-          flashes.push({ x: a.x, y: a.y, r: rr * 2.4, life: 1, c: a.c });
-          bodies.splice(j--, 1);
-        }
-      }
-    }
-  }
-
-  function energy() {
-    let ke = 0, pe = 0;
-    for (let i = 0; i < bodies.length; i++) {
-      const a = bodies[i];
-      ke += 0.5 * a.m * (a.vx * a.vx + a.vy * a.vy);
-      for (let j = i + 1; j < bodies.length; j++) {
-        const b = bodies[j];
-        const dx = b.x - a.x, dy = b.y - a.y;
-        pe -= S.G * a.m * b.m / Math.sqrt(dx * dx + dy * dy + S.eps2);
-      }
-    }
-    return [ke, pe];
-  }
-
-  /* ------------------------------------------------------------- presets */
-  // A body on a circular orbit at radius r around mass M has v = sqrt(GM/r).
-  const orbitV = (M, r) => Math.sqrt(S.G * M / r);
-
-  function ring(cx, cy, M, count, rMin, rMax, spin, spread) {
-    for (let i = 0; i < count; i++) {
-      const t = Math.random();
-      const r = rMin + (rMax - rMin) * Math.sqrt(t);
-      const a = Math.random() * 6.2832;
-      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
-      const v = orbitV(M, r) * (0.94 + Math.random() * 0.12);
-      const jitter = (Math.random() - 0.5) * (spread || 0);
-      bodies.push(body(x, y,
-        -Math.sin(a) * v * spin + jitter, Math.cos(a) * v * spin + jitter,
-        0.5 + Math.random() * 2.2));
-    }
-  }
-
-  const PRESETS = {
-    // The Chenciner-Montgomery choreography: three equal masses chasing one
-    // another around a single figure-eight curve. Same solution as the banner.
-    eight() {
-      const s = Math.min(W, H) * 0.30, cx = W / 2, cy = H / 2;
-      const m = 900, k = Math.sqrt(S.G * m / (s * s * s)) * s;
-      const px = 0.97000436, py = -0.24308753;
-      const vx = -0.93240737, vy = -0.86473146;
-      const B = [[-px, -py, -vx / 2, -vy / 2], [px, py, -vx / 2, -vy / 2],
-                 [0, 0, vx, vy]];
-      B.forEach((b, i) => bodies.push(body(
-        cx + b[0] * s, cy - b[1] * s, b[2] * k, -b[3] * k, m, PALETTE[i])));
-      return 'Three equal masses on one shared figure-eight — an exact periodic solution.';
-    },
-    disc() {
-      const cx = W / 2, cy = H / 2, M = 5200;
-      bodies.push(body(cx, cy, 0, 0, M, '#ffd166'));
-      ring(cx, cy, M, S.n - 1, Math.min(W, H) * 0.07, Math.min(W, H) * 0.44, 1);
-      return 'A protoplanetary disc. Watch the inner bodies lap the outer ones.';
-    },
-    binary() {
-      const cx = W / 2, cy = H / 2, M = 2600, sep = Math.min(W, H) * 0.13;
-      const v = 0.5 * Math.sqrt(S.G * 2 * M / sep);
-      bodies.push(body(cx - sep / 2, cy, 0, -v, M, '#ffd166'));
-      bodies.push(body(cx + sep / 2, cy, 0, v, M, '#ff8fd1'));
-      ring(cx, cy, 2 * M, S.n - 2, sep * 2.1, Math.min(W, H) * 0.46, 1);
-      return 'A circumbinary disc: stable only outside roughly twice the separation.';
-    },
-    collision() {
-      const M = 2600, R = Math.min(W, H) * 0.20, half = (S.n - 2) >> 1;
-      const drift = 0.55;
-      [[W * 0.30, H * 0.34, drift, '#4cc9f0'],
-       [W * 0.70, H * 0.66, -drift, '#7c5cff']].forEach(([cx, cy, d, col]) => {
-        bodies.push(body(cx, cy, d, 0, M, col));
-        const before = bodies.length;
-        ring(cx, cy, M, half, R * 0.16, R, 1);
-        for (let i = before; i < bodies.length; i++) bodies[i].vx += d;
-      });
-      return 'Two galaxies on an interception course. Tidal tails form on approach.';
-    },
-    // Tadpole orbits: small bodies librate about the L4/L5 points, the two
-    // equilibria 60 degrees ahead of and behind the planet. Stable only while
-    // the planet is far lighter than the star, so it is here.
-    trojans() {
-      const cx = W / 2, cy = H / 2, M = 6400, R = Math.min(W, H) * 0.34;
-      bodies.push(body(cx, cy, 0, 0, M, '#ffd166'));
-      bodies.push(body(cx + R, cy, 0, orbitV(M, R), 55, '#4cc9f0'));
-      const swarm = Math.max(0, S.n - 2) >> 1;
-      for (const sgn of [1, -1]) {
-        for (let i = 0; i < swarm; i++) {
-          const a = sgn * Math.PI / 3 + (Math.random() - 0.5) * 0.5;
-          const r = R * (1 + (Math.random() - 0.5) * 0.06);
-          const v = orbitV(M, r);
-          bodies.push(body(cx + Math.cos(a) * r, cy + Math.sin(a) * r,
-                           -Math.sin(a) * v, Math.cos(a) * v,
-                           0.04 + Math.random() * 0.08,
-                           sgn > 0 ? '#7c5cff' : '#ff8fd1'));
-        }
-      }
-      return 'Trojans librating about L4 and L5, sixty degrees ahead of and behind the planet.';
-    },
-    // Turns relativity on: the extra 1/r^4 pull means an ellipse no longer
-    // closes, so each orbit slowly rotates and paints a rosette.
-    precession() {
-      const cx = W / 2, cy = H / 2, M = 6000;
-      // (relativity is switched on for this scenario by PRESET_GR)
-      bodies.push(body(cx, cy, 0, 0, M, '#ffd166'));
-      for (let i = 0; i < 3; i++) {
-        const r = Math.min(W, H) * (0.18 + i * 0.08);
-        // 0.82 of circular speed puts apoapsis here and periapsis at ~0.5r,
-        // eccentric enough to see the axis turn, wide enough never to plunge
-        bodies.push(body(cx + r, cy, 0, orbitV(M, r) * 0.82, 2.5, PALETTE[i]));
-      }
-      return 'Relativity on. The ellipses no longer close, so each one rosettes.';
-    },
-    collapse() {
-      const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.36;
-      for (let i = 0; i < S.n; i++) {
-        const a = Math.random() * 6.2832, r = R * Math.sqrt(Math.random());
-        bodies.push(body(cx + Math.cos(a) * r, cy + Math.sin(a) * r,
-                         0, 0, 1 + Math.random() * 3));
-      }
-      return 'Cold collapse: released from rest, the cloud falls in and violently relaxes.';
-    }
-  };
-
-  let flashes = [];
-  let currentPreset = 'disc';
-
-  // Each scenario runs at its own natural pace, so the trail length that reads
-  // well differs: slow, massive bodies need a much longer persistence than a
-  // fast inner disc before the streak escapes their own glow.
-  // Relativity is a property of the scenario, not a sticky global: leaving it
-  // on after switching away would quietly collapse the next preset.
-  const PRESET_GR = { precession: true };
-  // Trojan dust and rosette test bodies are meant to survive, not coalesce.
-  const PRESET_MERGE = { trojans: false, precession: false };
-
-  const PRESET_TRAIL = {
-    eight: 0.975, disc: 0.93, binary: 0.94, collision: 0.955, collapse: 0.96,
-    trojans: 0.95, precession: 0.982
-  };
-  function load(name) {
-    currentPreset = name;
-    bodies = [];
-    flashes = [];
-    const msg = PRESETS[name]();
-    setGR(!!PRESET_GR[name]);
-    setMerge(PRESET_MERGE[name] !== false);
-    if (PRESET_TRAIL[name] !== undefined) {
-      S.trail = PRESET_TRAIL[name];
-      $('sT').value = S.trail;
-      $('vT').textContent = S.trail.toFixed(3);
-    }
-    accelerations();
-    ctx.clearRect(0, 0, W, H);
-    hint(msg);
-  }
-
-  /* ------------------------------------------------------------- pointer */
-  const ptr = { x: 0, y: 0, hold: false, repel: false, dragging: false,
-                sx: 0, sy: 0 };
-
-  const pos = e => {
-    const t = e.touches ? e.touches[0] : e;
-    ptr.x = t.clientX; ptr.y = t.clientY;
-  };
-
-  cv.addEventListener('pointerdown', e => {
-    cv.setPointerCapture(e.pointerId);
-    pos(e);
-    ptr.sx = ptr.x; ptr.sy = ptr.y;
-    ptr.hold = true;
-    ptr.repel = e.button === 2 || e.shiftKey;
-    ptr.dragging = false;
-  });
-  cv.addEventListener('pointermove', e => {
-    pos(e);
-    if (ptr.hold && Math.hypot(ptr.x - ptr.sx, ptr.y - ptr.sy) > 9)
-      ptr.dragging = true;
-  });
-  cv.addEventListener('pointerup', e => {
-    pos(e);
-    if (ptr.dragging) {
-      // slingshot: drag length sets launch speed, direction is drag-reversed
-      const dx = ptr.sx - ptr.x, dy = ptr.sy - ptr.y;
-      const m = ptr.repel ? 420 : 26;
-      bodies.push(body(ptr.sx, ptr.sy, dx * 0.05, dy * 0.05, m));
-      accelerations();
-    }
-    ptr.hold = false; ptr.dragging = false;
-  });
-  cv.addEventListener('contextmenu', e => e.preventDefault());
-
-  /* ---------------------------------------------------------------- HUD */
   const $ = id => document.getElementById(id);
-  const fmt = v => {
-    const a = Math.abs(v);
-    if (a >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-    if (a >= 1e3) return (v / 1e3).toFixed(2) + 'k';
-    return v.toFixed(1);
+  const cvs = $('gl');
+  const gl = cvs.getContext('webgl2', { alpha: false, antialias: false, depth: false });
+  if (!gl) {
+    $('dead').classList.add('show');
+    $('controls').style.display = 'none';
+    $('hud').style.display = 'none';
+    $('stage').style.display = 'none';
+    return;
+  }
+
+  const VS = `#version 300 es
+void main() {
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+  const FS = `#version 300 es
+precision highp float;
+uniform vec2  uRes;
+uniform float uAspect;
+uniform float uYaw;
+uniform float uPitch;
+uniform float uDist;
+uniform float uJaw;
+uniform float uGamma;
+out vec4 fragColor;
+
+/* ------------------------------------------------------------ primitives */
+float sdEllipsoid(vec3 p, vec3 r) {
+  float k0 = length(p / r);
+  float k1 = length(p / (r * r));
+  return k0 * (k0 - 1.0) / max(k1, 1e-6);
+}
+float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
+  vec3 pa = p - a, ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - r;
+}
+float sdBox(vec3 p, vec3 b) {
+  vec3 q = abs(p) - b;
+  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+}
+float smin(float a, float b, float k) {
+  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) - k * h * (1.0 - h);
+}
+float smax(float a, float b, float k) {
+  float h = clamp(0.5 - 0.5 * (b - a) / k, 0.0, 1.0);
+  return mix(b, a, h) + k * h * (1.0 - h);
+}
+float ssub(float a, float b, float k) { return smax(a, -b, k); }
+vec3 rotX(vec3 p, float a) {
+  float s = sin(a), c = cos(a);
+  return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z);
+}
+
+/* --------------------------------------------------------- dental arch */
+// One tooth, repeated around the polar angle and clipped to the front arc.
+float arch(vec3 p, float yc, float zc, float rad, float halfH, float count, float span) {
+  vec3 q = p - vec3(0.0, yc, zc);
+  float a = atan(q.x, q.z);
+  float r = length(q.xz);
+  float seg = 6.2831853 / count;
+  float a2 = mod(a + seg * 0.5, seg) - seg * 0.5;
+  float d = sdBox(vec3(a2 * r, q.y, r - rad), vec3(0.028, halfH, 0.030)) - 0.013;
+  return max(d, (abs(a) - span) * 0.55);
+}
+
+/* ---------------------------------------------------------------- skull */
+// Proportions come from a real skull: the orbit is about a third of the face
+// width, which leaves only a thin lateral rim -- get that wrong and the thing
+// reads as a helmet. Every number below was tuned against an offline render.
+float map(vec3 p) {
+  vec3 m = vec3(abs(p.x), p.y, p.z);
+
+  // braincase, long front-to-back, with the underside of the occiput carved
+  // away so it stops reading as a ball
+  float d = sdEllipsoid(p - vec3(0.0, 0.24, -0.10), vec3(0.575, 0.565, 0.700));
+  d = ssub(d, sdEllipsoid(p - vec3(0.0, -1.02, -0.40), vec3(0.95, 0.66, 0.72)), 0.20);
+
+  // facial mass hung off the front
+  d = smin(d, sdEllipsoid(p - vec3(0.0, -0.25, 0.31), vec3(0.405, 0.480, 0.385)), 0.20);
+  // brow ridge
+  d = smin(d, sdCapsule(p, vec3(-0.34, 0.19, 0.485), vec3(0.34, 0.19, 0.485), 0.120), 0.13);
+  // zygomatic arch, orbit rim back to the ear
+  d = smin(d, sdCapsule(m, vec3(0.40, -0.03, 0.365), vec3(0.560, 0.04, -0.22), 0.058), 0.10);
+  // temporal hollow
+  d = ssub(d, sdEllipsoid(m - vec3(0.860, 0.30, 0.02), vec3(0.340, 0.420, 0.500)), 0.16);
+  // orbits
+  d = ssub(d, sdEllipsoid(m - vec3(0.305, -0.01, 0.38), vec3(0.195, 0.228, 0.44)), 0.042);
+  // nasal aperture: wide at the base, pinched to a slit at the bridge
+  float nose = sdEllipsoid(p - vec3(0.0, -0.30, 0.50), vec3(0.140, 0.130, 0.26));
+  nose = smin(nose, sdEllipsoid(p - vec3(0.0, -0.04, 0.50), vec3(0.036, 0.165, 0.24)), 0.075);
+  d = ssub(d, nose, 0.032);
+  // upper dental arch
+  d = smin(d, arch(p, -0.660, 0.19, 0.290, 0.050, 20.0, 1.32), 0.03);
+
+  // mandible, hinged at the condyles: a chain of capsules following the real
+  // outline (chin, body, angle) plus a flat plate for the ascending ramus
+  vec3 hinge = vec3(0.0, -0.08, -0.26);
+  vec3 j = rotX(p - hinge, uJaw) + hinge;
+  vec3 jm = vec3(abs(j.x), j.y, j.z);
+  float jaw = sdCapsule(j, vec3(-0.11, -0.895, 0.435), vec3(0.11, -0.895, 0.435), 0.078);
+  jaw = min(jaw, sdCapsule(jm, vec3(0.10, -0.895, 0.435), vec3(0.275, -0.860, 0.315), 0.074));
+  jaw = min(jaw, sdCapsule(jm, vec3(0.275, -0.860, 0.315), vec3(0.415, -0.800, 0.020), 0.070));
+  jaw = min(jaw, sdCapsule(jm, vec3(0.415, -0.800, 0.020), vec3(0.455, -0.735, -0.190), 0.068));
+  jaw = smin(jaw, sdBox(jm - vec3(0.455, -0.450, -0.145), vec3(0.024, 0.290, 0.070)) - 0.026, 0.10);
+  jaw = smin(jaw, arch(j, -0.800, 0.19, 0.275, 0.048, 20.0, 1.28), 0.03);
+
+  return min(d, jaw);
+}
+
+vec3 normal(vec3 p) {
+  vec2 k = vec2(1.0, -1.0) * 0.0016;
+  return normalize(k.xyy * map(p + k.xyy) + k.yyx * map(p + k.yyx) +
+                   k.yxy * map(p + k.yxy) + k.xxx * map(p + k.xxx));
+}
+
+float ao(vec3 p, vec3 n) {
+  float s = 0.0, w = 1.0;
+  for (int i = 1; i <= 5; i++) {
+    float h = 0.024 * float(i) * float(i);
+    s += w * (h - map(p + n * h));
+    w *= 0.72;
+  }
+  return clamp(1.0 - 3.0 * s, 0.0, 1.0);
+}
+
+void main() {
+  vec2 uv = (gl_FragCoord.xy / uRes) * 2.0 - 1.0;
+  uv.x *= uAspect;
+
+  vec3 target = vec3(0.0, -0.14, 0.0);
+  float cp = cos(uPitch), sp = sin(uPitch);
+  vec3 ro = target + vec3(sin(uYaw) * cp, sp, cos(uYaw) * cp) * uDist;
+  vec3 fw = normalize(target - ro);
+  vec3 rt = normalize(cross(fw, vec3(0.0, 1.0, 0.0)));
+  vec3 up = cross(rt, fw);
+  vec3 rd = normalize(uv.x * rt + uv.y * up + 1.75 * fw);
+
+  float t = 0.0;
+  bool hit = false;
+  for (int i = 0; i < 110; i++) {
+    vec3 p = ro + rd * t;
+    float h = map(p);
+    if (h < 0.0009) { hit = true; break; }
+    t += h * 0.92;
+    if (t > 9.0) break;
+  }
+
+  float lum = 0.0, ember = 0.0;
+  if (hit) {
+    vec3 p = ro + rd * t;
+    vec3 n = normal(p);
+    // A hard side light destroys a skull: the features that make it read are
+    // symmetric, so the key sits just off the view axis and the cavities are
+    // carried by occlusion instead of by cast shadow.
+    float occ = pow(ao(p, n), 1.15);
+    float front = clamp(dot(n, -rd), 0.0, 1.0);
+    vec3 key = normalize(-rd * 0.75 + vec3(-0.34, 0.54, 0.0));
+    float dif = clamp(dot(n, key), 0.0, 1.0);
+    float sil = pow(clamp(1.0 - front, 0.0, 1.0), 3.0);
+
+    lum = 0.05 + occ * (0.40 * pow(front, 0.6) + 0.60 * dif) + 0.20 * occ * sil;
+    lum = clamp((lum - 0.04) / 0.90, 0.0, 1.0);
+
+    // something burning back in the orbits
+    vec3 e = vec3(abs(p.x), p.y, p.z) - vec3(0.305, -0.01, 0.14);
+    ember = smoothstep(1.05, 0.25, length(e / vec3(0.185, 0.205, 0.30)));
+    lum += ember * 0.85;
+  }
+
+  lum = pow(clamp(lum, 0.0, 1.0), 1.0 / uGamma);
+  fragColor = vec4(lum, ember, 0.0, 1.0);
+}`;
+
+  /* --------------------------------------------------------- gl plumbing */
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.error(gl.getShaderInfoLog(s));
+      console.error(src.split('\n').map((l, i) => (i + 1) + ': ' + l).join('\n'));
+      throw new Error('shader compile failed');
+    }
+    return s;
+  }
+  const prog = (() => {
+    const p = gl.createProgram();
+    gl.attachShader(p, compile(gl.VERTEX_SHADER, VS));
+    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      console.error(gl.getProgramInfoLog(p));
+      throw new Error('program link failed');
+    }
+    const u = {};
+    const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) {
+      const info = gl.getActiveUniform(p, i);
+      u[info.name] = gl.getUniformLocation(p, info.name);
+    }
+    return { p, u };
+  })();
+  gl.bindVertexArray(gl.createVertexArray());
+  gl.useProgram(prog.p);
+
+  let tex = null, fbo = null, pix = null;
+  function allocate(w, h) {
+    if (tex) { gl.deleteTexture(tex); gl.deleteFramebuffer(fbo); }
+    tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    pix = new Uint8Array(w * h * 4);
+  }
+
+  /* ------------------------------------------------------------- glyphs */
+  // Ramps run from no ink to full ink, so index = brightness.
+  const RAMPS = [
+    { name: 'soft',   chars: ' .:-=+*#%@' },
+    { name: 'fine',   chars: " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$" },
+    { name: 'blocks', chars: ' ░▒▓█' },
+    { name: 'bits',   chars: ' ..::0011' }
+  ];
+  const PALETTES = ['synth', 'bone', 'phos', 'ash'];
+
+  const S = {
+    fs: 13, gamma: 1, spin: 0.25, ramp: 0, pal: 0,
+    ember: false, crt: true, spinning: true,
+    yaw: 0.62, pitch: 0.16, dist: 2.90, jaw: 0.10
   };
+
+  /* --------------------------------------------------------- the grid */
+  let COLS = 0, ROWS = 0, charW = 8, lineH = 13, VW = 0, VH = 0;
+  let codes = null, rowsDim = [], rowsLit = [], rowsEmb = [];
+  const elDim = $('dim'), elLit = $('lit'), elEmb = $('emb');
+
+  // Must be a <pre class="layer"> and not a span: the font stack is bound to
+  // pre.layer, and measuring the wrong font puts the whole image off centre.
+  // inset:0 from .layer would stretch the probe, so every edge is reset here.
+  function measureCell(px) {
+    const probe = document.createElement('pre');
+    probe.className = 'layer';
+    probe.style.cssText =
+      'position:absolute;visibility:hidden;left:-9999px;top:0;right:auto;bottom:auto;' +
+      'width:auto;height:auto;margin:0;padding:0;overflow:visible;white-space:pre;' +
+      'font-size:' + px + 'px;line-height:1;';
+    probe.textContent = 'M'.repeat(200);
+    document.body.appendChild(probe);
+    const w = probe.getBoundingClientRect().width / 200;
+    document.body.removeChild(probe);
+    return { w: w > 0.5 ? w : px * 0.6, h: px };
+  }
+
+  function layout() {
+    VW = innerWidth; VH = innerHeight;
+    document.documentElement.style.setProperty('--fs', S.fs + 'px');
+    const cell = measureCell(S.fs);
+    charW = cell.w; lineH = cell.h;
+    COLS = Math.max(24, Math.floor(VW / charW));
+    ROWS = Math.max(14, Math.floor(VH / lineH));
+    // a hard ceiling on glyphs keeps the per-frame string building bounded
+    while (COLS * ROWS > 52000) { COLS = Math.floor(COLS * 0.94); ROWS = Math.floor(ROWS * 0.94); }
+    cvs.width = COLS; cvs.height = ROWS;
+    allocate(COLS, ROWS);
+    codes = new Uint16Array(COLS);
+    rowsDim = new Array(ROWS); rowsLit = new Array(ROWS); rowsEmb = new Array(ROWS);
+    $('hGrid').textContent = COLS + '×' + ROWS;
+    $('hCells').textContent = (COLS * ROWS).toLocaleString();
+  }
+
+  /* --------------------------------------------------------------- draw */
+  const SP = 32; // space
+  function toText() {
+    const ramp = RAMPS[S.ramp].chars;
+    const top = ramp.length - 1;
+    const litCut = Math.max(2, Math.round(top * 0.62));
+    for (let y = 0; y < ROWS; y++) {
+      // readPixels hands back rows bottom-up; text runs top-down
+      let o = (ROWS - 1 - y) * COLS * 4;
+      let anyLit = false, anyEmb = false;
+      for (let x = 0; x < COLS; x++) codes[x] = pix[o + x * 4];
+      // dim layer: every glyph
+      for (let x = 0; x < COLS; x++) codes[x] = ramp.charCodeAt((codes[x] * top / 255 + 0.5) | 0);
+      rowsDim[y] = String.fromCharCode.apply(null, codes);
+      // lit layer: only the glyphs at the top of the ramp
+      for (let x = 0; x < COLS; x++) {
+        const v = (pix[o + x * 4] * top / 255 + 0.5) | 0;
+        if (v >= litCut) { codes[x] = ramp.charCodeAt(v); anyLit = true; } else codes[x] = SP;
+      }
+      rowsLit[y] = anyLit ? String.fromCharCode.apply(null, codes) : '';
+      // ember layer: whatever the orbits are throwing
+      if (S.ember) {
+        for (let x = 0; x < COLS; x++) {
+          if (pix[o + x * 4 + 1] > 96) {
+            codes[x] = ramp.charCodeAt((pix[o + x * 4] * top / 255 + 0.5) | 0);
+            anyEmb = true;
+          } else codes[x] = SP;
+        }
+        rowsEmb[y] = anyEmb ? String.fromCharCode.apply(null, codes) : '';
+      } else rowsEmb[y] = '';
+    }
+    elDim.textContent = rowsDim.join('\n');
+    elLit.textContent = rowsLit.join('\n');
+    elEmb.textContent = rowsEmb.join('\n');
+  }
+
+  function render(now) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.viewport(0, 0, COLS, ROWS);
+    gl.useProgram(prog.p);
+    gl.uniform2f(prog.u.uRes, COLS, ROWS);
+    gl.uniform1f(prog.u.uAspect, (COLS * charW) / (ROWS * lineH));
+    gl.uniform1f(prog.u.uYaw, S.yaw);
+    gl.uniform1f(prog.u.uPitch, S.pitch);
+    gl.uniform1f(prog.u.uDist, S.dist);
+    gl.uniform1f(prog.u.uJaw, S.jaw + 0.035 * Math.sin(now * 0.0006));
+    gl.uniform1f(prog.u.uGamma, S.gamma);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.readPixels(0, 0, COLS, ROWS, gl.RGBA, gl.UNSIGNED_BYTE, pix);
+    toText();
+  }
+
+  /* ---------------------------------------------------------- interaction */
+  const stage = $('stage');
+  let drag = null;
+  stage.addEventListener('pointerdown', e => {
+    if (e.target.closest('.panel')) return;
+    e.preventDefault();
+    stage.setPointerCapture(e.pointerId);
+    stage.classList.add('grabbing');
+    drag = { x: e.clientX, y: e.clientY };
+  });
+  addEventListener('pointermove', e => {
+    if (!drag) return;
+    S.yaw -= (e.clientX - drag.x) * 0.0075;
+    S.pitch = Math.max(-1.15, Math.min(1.15, S.pitch + (e.clientY - drag.y) * 0.0055));
+    drag.x = e.clientX; drag.y = e.clientY;
+  });
+  addEventListener('pointerup', () => { drag = null; stage.classList.remove('grabbing'); });
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    S.dist = Math.max(1.7, Math.min(7, S.dist * (1 + Math.sign(e.deltaY) * 0.09)));
+  }, { passive: false });
+
+  const VIEWS = {
+    face:  { yaw: 0.0,    pitch: 0.03, dist: 2.70 },
+    three: { yaw: 0.66,   pitch: 0.17, dist: 2.90 },
+    side:  { yaw: 1.5708, pitch: 0.04, dist: 2.85 }
+  };
+  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+    const v = VIEWS[b.dataset.view];
+    S.yaw = v.yaw; S.pitch = v.pitch; S.dist = v.dist;
+    S.spinning = false; setSpin(false);
+  }));
 
   let hintTimer = 0;
-  function hint(text) {
+  function hint(html) {
     const el = $('hint');
-    el.textContent = text;
+    el.innerHTML = html;
     el.classList.add('show');
     clearTimeout(hintTimer);
-    hintTimer = setTimeout(() => el.classList.remove('show'), 4200);
+    hintTimer = setTimeout(() => el.classList.remove('show'), 6000);
   }
 
-  $('sG').addEventListener('input', e => {
-    S.G = +e.target.value; $('vG').textContent = S.G.toFixed(2);
+  function setSpin(v) { S.spinning = v; $('bSpin').setAttribute('aria-pressed', String(v)); }
+
+  $('bSpin').addEventListener('click', () => setSpin(!S.spinning));
+  $('bRamp').addEventListener('click', () => {
+    S.ramp = (S.ramp + 1) % RAMPS.length;
+    $('bRamp').textContent = 'ramp: ' + RAMPS[S.ramp].name;
+    hint(RAMPS[S.ramp].chars.length + ' levels of ink, from <em>' +
+         (RAMPS[S.ramp].chars[1] || ' ') + '</em> to <em>' +
+         RAMPS[S.ramp].chars[RAMPS[S.ramp].chars.length - 1] + '</em>');
   });
-  $('sT').addEventListener('input', e => {
-    S.trail = +e.target.value; $('vT').textContent = S.trail.toFixed(3);
+  $('bPal').addEventListener('click', () => {
+    S.pal = (S.pal + 1) % PALETTES.length;
+    document.body.dataset.pal = PALETTES[S.pal];
+    $('bPal').textContent = 'palette: ' + PALETTES[S.pal];
   });
-  $('sN').addEventListener('input', e => {
-    S.n = +e.target.value; $('vN').textContent = S.n;
+  $('bEmber').addEventListener('click', () => {
+    S.ember = !S.ember;
+    $('bEmber').setAttribute('aria-pressed', String(S.ember));
   });
-  $('sN').addEventListener('change', () => load(currentPreset));
-  document.querySelectorAll('[data-preset]').forEach(b =>
-    b.addEventListener('click', () => load(b.dataset.preset)));
-  function setGR(v) {
-    S.gr = v;
-    $('bGR').setAttribute('aria-pressed', String(v));
+  $('bCrt').addEventListener('click', () => {
+    S.crt = !S.crt;
+    document.body.classList.toggle('flat', !S.crt);
+    $('bCrt').setAttribute('aria-pressed', String(S.crt));
+  });
+  function copyFrame() {
+    const txt = elDim.textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(
+        () => hint('this frame copied &mdash; ' + COLS + '×' + ROWS + ' characters, paste it anywhere'),
+        () => hint('clipboard refused &mdash; select the skull and copy it by hand instead'));
+    } else hint('no clipboard here &mdash; select the skull and copy it by hand');
   }
-  function setGrid(v) {
-    S.grid = v;
-    $('bGrid').setAttribute('aria-pressed', String(v));
+  $('bCopy').addEventListener('click', copyFrame);
+
+  function slider(id, out, key, fmt, after) {
+    const el = $(id);
+    el.addEventListener('input', e => {
+      S[key] = +e.target.value;
+      $(out).textContent = fmt(S[key]);
+      if (after) after();
+    });
+    $(out).textContent = fmt(S[key]);
   }
-  $('bGR').addEventListener('click', () => setGR(!S.gr));
-  $('bGrid').addEventListener('click', () => setGrid(!S.grid));
-  function setMerge(v) {
-    S.merge = v;
-    $('bMerge').setAttribute('aria-pressed', String(v));
-  }
-  $('bMerge').addEventListener('click', () => setMerge(!S.merge));
-  $('bPause').addEventListener('click', togglePause);
-  function togglePause() {
-    S.paused = !S.paused;
-    $('bPause').textContent = S.paused ? 'resume' : 'pause';
-    $('bPause').setAttribute('aria-pressed', String(S.paused));
-  }
+  slider('sFs', 'vFs', 'fs', v => v.toFixed(0), () => layout());
+  slider('sGa', 'vGa', 'gamma', v => v.toFixed(2));
+  slider('sSp', 'vSp', 'spin', v => v.toFixed(2));
+
   addEventListener('keydown', e => {
-    if (e.code === 'Space') { e.preventDefault(); togglePause(); }
-    else if (e.key === 'r' || e.key === 'R') load(currentPreset);
+    if (e.target !== document.body) return;
+    const k = e.key.toLowerCase();
+    if (e.code === 'Space') { e.preventDefault(); setSpin(!S.spinning); }
+    else if (k === 'c' && !e.ctrlKey && !e.metaKey) copyFrame();
+    else if (k === 'r') $('bRamp').click();
+    else if (k === 'p') $('bPal').click();
   });
-  addEventListener('resize', () => { resize(); load(currentPreset); });
 
-  /* -------------------------------------------------------------- render */
-  let last = performance.now(), fps = 60, frame = 0;
-
-  function draw(now) {
-    requestAnimationFrame(draw);
-    const elapsed = now - last;
-    last = now;
-    fps += (1000 / Math.max(elapsed, 1) - fps) * 0.08;
-
-    if (!S.paused) {
-      const dt = S.dt / S.sub;
-      for (let k = 0; k < S.sub; k++) step(dt);
-    }
-
-    // background: repainted outright, so nothing accumulates
-    bgc.fillStyle = '#05060f';
-    bgc.fillRect(0, 0, W, H);
-    if (starLayer) {
-      bgc.globalAlpha = 0.55;
-      bgc.drawImage(starLayer, 0, 0, W, H);
-      bgc.globalAlpha = 1;
-    }
-    if (S.grid) drawGrid();
-
-    // motion blur: fade the body layer toward transparent, never toward a colour
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = 'rgba(0, 0, 0, ' + (1 - S.trail).toFixed(3) + ')';
-    ctx.fillRect(0, 0, W, H);
-
-    ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < bodies.length; i++) {
-      const b = bodies[i];
-      const g = Math.min(Math.max(b.r * 3.0, 5.5), 74);
-      ctx.drawImage(sprite(b.c), b.x - g, b.y - g, g * 2, g * 2);
-    }
-
-    for (let i = flashes.length - 1; i >= 0; i--) {
-      const f = flashes[i];
-      f.life -= 0.045;
-      if (f.life <= 0) { flashes.splice(i, 1); continue; }
-      const g = f.r * (2.4 - f.life);
-      ctx.globalAlpha = f.life * 0.6;
-      ctx.drawImage(sprite(f.c), f.x - g, f.y - g, g * 2, g * 2);
-      ctx.globalAlpha = 1;
-    }
-
-    // slingshot aiming line
-    if (ptr.hold && ptr.dragging) {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = 'rgba(255, 209, 102, 0.75)';
-      ctx.lineWidth = 1.4;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.moveTo(ptr.sx, ptr.sy);
-      ctx.lineTo(ptr.x, ptr.y);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.arc(ptr.sx, ptr.sy, 5, 0, 6.2832);
-      ctx.stroke();
-    }
-    ctx.globalCompositeOperation = 'source-over';
-
-    if ((frame++ & 15) === 0) {
-      $('hBodies').textContent = bodies.length;
-      $('hFps').textContent = fps.toFixed(0);
-      const [ke, pe] = energy();
-      $('hKe').textContent = fmt(ke);
-      $('hPe').textContent = fmt(pe);
-      const te = $('hTe');
-      te.textContent = fmt(ke + pe);
-      te.className = ke + pe < 0 ? '' : 'warn';   // positive total => unbound
-    }
-  }
-
-  resize();
-  // deep-link a scenario with e.g. .../orbital/#eight
-  const wanted = decodeURIComponent(location.hash.slice(1));
-  load(Object.prototype.hasOwnProperty.call(PRESETS, wanted) ? wanted : 'disc');
   addEventListener('hashchange', () => {
     const w = decodeURIComponent(location.hash.slice(1));
-    if (Object.prototype.hasOwnProperty.call(PRESETS, w)) load(w);
+    if (VIEWS[w]) { Object.assign(S, VIEWS[w]); setSpin(false); }
   });
-  requestAnimationFrame(draw);
+
+  let resizeTimer = 0;
+  addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(layout, 150);
+  });
+
+  /* ----------------------------------------------------------------- loop */
+  let last = performance.now(), fps = 60, frame = 0, sway = 0.9;
+  function tick(now) {
+    requestAnimationFrame(tick);
+    const ms = now - last; last = now;
+    fps += (1000 / Math.max(ms, 1) - fps) * 0.08;
+    if (S.spinning && !drag) {
+      // the profile is the weakest angle, so the idle motion sways between the
+      // two three-quarter views rather than turning all the way round
+      sway += S.spin * Math.min(ms, 50) * 0.0011;
+      S.yaw = 0.80 * Math.sin(sway);
+      S.pitch = 0.10 + 0.09 * Math.sin(sway * 0.6 + 1.1);
+    }
+    render(now);
+    if ((frame & 15) === 0) {
+      $('hFps').textContent = fps.toFixed(0);
+      $('hRays').textContent = (COLS * ROWS).toLocaleString();
+    }
+    frame++;
+  }
+
+  layout();
+  const wanted = decodeURIComponent(location.hash.slice(1));
+  if (VIEWS[wanted]) { Object.assign(S, VIEWS[wanted]); S.spinning = false; setSpin(false); }
+  requestAnimationFrame(tick);
 })();
 </script>
 </body>

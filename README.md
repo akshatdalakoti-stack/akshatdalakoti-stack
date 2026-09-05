@@ -1,22 +1,20 @@
 <div align="center">
 
-<img src="assets/hero.svg" width="100%" alt="A star bending a lattice of spacetime, orbited by a planet with trojan swarms at its L4 and L5 points, and an inner body tracing a relativistic rosette">
+<img src="assets/hero.svg" width="100%" alt="A human skull drawn entirely in monospace characters, turning slowly between three-quarter views">
 
 ### **`Akshat Dalakoti`**
 
 ***“As far as I’m concerned, destiny can go fuck itself.”***
 
 <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/">
-  <img src="https://img.shields.io/badge/▶_launch_the_live_simulation-05060f?style=for-the-badge&labelColor=7c5cff&color=05060f" alt="Launch the live simulation">
+  <img src="https://img.shields.io/badge/▶_run_it_live-05060f?style=for-the-badge&labelColor=7c5cff&color=05060f" alt="Run the live version">
 </a>
 
 <sub>
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#eight">figure&#8209;8</a> ·
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#trojans">trojans</a> ·
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#precession">precession</a> ·
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#binary">binary</a> ·
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#collision">galaxy collision</a> ·
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#collapse">cold collapse</a>
+  no model, no texture &mdash; a signed distance field raymarched into the character grid, sixty times a second<br>
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#face">face</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#three">three&#8209;quarter</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#side">profile</a>
 </sub>
 
 </div>
@@ -32,7 +30,7 @@ graphics, embedded control, and the small tools that make the rest less painful.
 - 🔭 Currently working on — **[minidb](https://github.com/akshatdalakoti-stack/minidb)**, a
   database storage engine written from scratch in Go on the standard library alone:
   pager, buffer pool, B-tree indexes, a write-ahead log, and crash recovery.
-- 💬 Ask me about — storage engines, Redis internals, N-body integrators, or coaxing
+- 💬 Ask me about — storage engines, Redis internals, raymarching signed distance fields, or coaxing
   BirdNET onto an ESP32.
 - 🧩 Puzzles — [LeetCode: dalakoti_0019_akshat](https://leetcode.com/u/dalakoti_0019_akshat/)
 - 📫 Reach me at — **akshatdalakoti@gmail.com** ·

@@ -1,361 +1,260 @@
 """
-Bakes a gravitational scene into a looping animated SVG banner.
+Bakes the skull into a looping animated SVG banner of real characters.
 
 GitHub renders README images inside <img>, where no JavaScript runs -- so the
-motion here is pre-computed rather than simulated live:
+live version in docs/index.html cannot be embedded directly. What works there
+is CSS animation inside the SVG itself, so this pre-renders a short cycle of
+frames and flicks between them:
 
-  * the sheet   : a lattice pulled toward the star, falling off as 1/distance.
-                  Static, because the only mass heavy enough to bend it visibly
-                  does not move.
-  * the planet  : a circular orbit, seen with its plane tilted away from us so
-                  it reads as an ellipse.
-  * the trojans : L4 and L5 sit sixty degrees ahead of and behind the planet on
-                  the very same orbit, so they cost one path and a phase offset
-                  per body rather than an orbit each.
-  * the rosette : a Schwarzschild orbit, integrated with RK4, whose relativistic
-                  coefficient is tuned by bisection until the apsidal advance is
-                  exactly 2*pi/5 -- so it closes after five radial periods and
-                  the loop is seamless.
+  * geometry  : the same signed distance function the page raymarches, kept in
+                sync by hand -- braincase and facial mass blended, brow ridge
+                and zygomatic arches added, orbits and nasal aperture carved
+                back out, a dental arch repeated around a polar angle, and a
+                mandible hinged at the condyles.
+  * shading   : a near-frontal key plus five-tap ambient occlusion. A hard side
+                light would break the symmetry the skull reads by.
+  * motion    : yaw sways as a sine, so the loop closes seamlessly and never
+                reaches the straight profile, which is the least legible angle.
+  * animation : one @keyframes shared by every frame group, each offset by its
+                own animation-delay. Cheaper than a keyframes block per frame.
 
-Motion rides <animateMotion> over an <mpath>, with keyPoints/keyTimes carrying
-the physical timing (arc-length fraction against fraction of period). Comet
-tails are a single dashed stroke whose dash-offset follows that same timing.
+Every row is pinned with textLength/lengthAdjust so the grid stays square
+whatever monospace font the viewer happens to resolve -- without that, a font
+whose advance width is not exactly 0.6em shears the picture apart.
+
+Needs numpy. Run from the repository root:  python tools/gen_hero.py
 """
-import math
+import numpy as np
 
-W, H = 1200.0, 380.0
+# ----------------------------------------------------------------- geometry
+JAW = 0.10
+
+
+def nrm(v):
+    return np.sqrt((v * v).sum(-1))
+
+
+def sdEllipsoid(p, c, r):
+    q = (p - c) / r
+    k0 = nrm(q)
+    k1 = nrm((p - c) / (r * r))
+    return k0 * (k0 - 1.0) / np.maximum(k1, 1e-6)
+
+
+def sdCapsule(p, a, b, r):
+    pa = p - a
+    ba = np.asarray(b, float) - np.asarray(a, float)
+    h = np.clip((pa * ba).sum(-1) / ba.dot(ba), 0.0, 1.0)[..., None]
+    return nrm(pa - ba * h) - r
+
+
+def sdBox(p, b):
+    q = np.abs(p) - b
+    return nrm(np.maximum(q, 0.0)) + np.minimum(q.max(-1), 0.0)
+
+
+def smin(a, b, k):
+    h = np.clip(0.5 + 0.5 * (b - a) / k, 0.0, 1.0)
+    return b + (a - b) * h - k * h * (1.0 - h)
+
+
+def smax(a, b, k):
+    h = np.clip(0.5 - 0.5 * (b - a) / k, 0.0, 1.0)
+    return b + (a - b) * h + k * h * (1.0 - h)
+
+
+def ssub(a, b, k):
+    return smax(a, -b, k)
+
+
+def rotX(p, a):
+    s, c = np.sin(a), np.cos(a)
+    return np.stack([p[..., 0],
+                     c * p[..., 1] - s * p[..., 2],
+                     s * p[..., 1] + c * p[..., 2]], -1)
+
+
+def arch(p, yc, zc, rad, halfH, count, span):
+    """One tooth, repeated around the polar angle and clipped to the front arc."""
+    q = p - np.array([0.0, yc, zc])
+    a = np.arctan2(q[..., 0], q[..., 2])
+    r = np.hypot(q[..., 0], q[..., 2])
+    seg = 2 * np.pi / count
+    a2 = np.mod(a + seg * 0.5, seg) - seg * 0.5
+    d = sdBox(np.stack([a2 * r, q[..., 1], r - rad], -1),
+              np.array([0.028, halfH, 0.030])) - 0.013
+    return np.maximum(d, (np.abs(a) - span) * 0.55)
+
+
+def map_(p):
+    m = np.stack([np.abs(p[..., 0]), p[..., 1], p[..., 2]], -1)
+
+    d = sdEllipsoid(p, np.array([0.0, 0.24, -0.10]), np.array([0.575, 0.565, 0.700]))
+    d = ssub(d, sdEllipsoid(p, np.array([0.0, -1.02, -0.40]),
+                            np.array([0.95, 0.66, 0.72])), 0.20)
+    d = smin(d, sdEllipsoid(p, np.array([0.0, -0.25, 0.31]),
+                            np.array([0.405, 0.480, 0.385])), 0.20)
+    d = smin(d, sdCapsule(p, [-0.34, 0.19, 0.485], [0.34, 0.19, 0.485], 0.120), 0.13)
+    d = smin(d, sdCapsule(m, [0.40, -0.03, 0.365], [0.560, 0.04, -0.22], 0.058), 0.10)
+    d = ssub(d, sdEllipsoid(m, np.array([0.860, 0.30, 0.02]),
+                            np.array([0.340, 0.420, 0.500])), 0.16)
+    d = ssub(d, sdEllipsoid(m, np.array([0.305, -0.01, 0.38]),
+                            np.array([0.195, 0.228, 0.44])), 0.042)
+    nose = sdEllipsoid(p, np.array([0.0, -0.30, 0.50]), np.array([0.140, 0.130, 0.26]))
+    nose = smin(nose, sdEllipsoid(p, np.array([0.0, -0.04, 0.50]),
+                                  np.array([0.036, 0.165, 0.24])), 0.075)
+    d = ssub(d, nose, 0.032)
+    d = smin(d, arch(p, -0.660, 0.19, 0.290, 0.050, 20.0, 1.32), 0.03)
+
+    hinge = np.array([0.0, -0.08, -0.26])
+    j = rotX(p - hinge, JAW) + hinge
+    jm = np.stack([np.abs(j[..., 0]), j[..., 1], j[..., 2]], -1)
+    jaw = sdCapsule(j, [-0.11, -0.895, 0.435], [0.11, -0.895, 0.435], 0.078)
+    jaw = np.minimum(jaw, sdCapsule(jm, [0.10, -0.895, 0.435], [0.275, -0.860, 0.315], 0.074))
+    jaw = np.minimum(jaw, sdCapsule(jm, [0.275, -0.860, 0.315], [0.415, -0.800, 0.020], 0.070))
+    jaw = np.minimum(jaw, sdCapsule(jm, [0.415, -0.800, 0.020], [0.455, -0.735, -0.190], 0.068))
+    jaw = smin(jaw, sdBox(jm - np.array([0.455, -0.450, -0.145]),
+                          np.array([0.024, 0.290, 0.070])) - 0.026, 0.10)
+    jaw = smin(jaw, arch(j, -0.800, 0.19, 0.275, 0.048, 20.0, 1.28), 0.03)
+    return np.minimum(d, jaw)
+
+
+def normal(p):
+    e = 0.0016
+    out = np.zeros_like(p)
+    for k in ([1, -1, -1], [-1, -1, 1], [-1, 1, -1], [1, 1, 1]):
+        k = np.array(k, float) * e
+        out += k * map_(p + k)[..., None]
+    return out / np.maximum(nrm(out)[..., None], 1e-9)
+
+
+def ao(p, n):
+    s, w = np.zeros(p.shape[:-1]), 1.0
+    for i in range(1, 6):
+        h = 0.024 * i * i
+        s += w * (h - map_(p + n * h))
+        w *= 0.72
+    return np.clip(1.0 - 3.0 * s, 0.0, 1.0)
+
+
+def render(cols, rows, yaw, pitch, dist, cellw, fov=1.75):
+    ys, xs = np.mgrid[0:rows, 0:cols]
+    u = ((xs + 0.5) / cols * 2 - 1) * (cols * cellw) / rows
+    v = 1 - (ys + 0.5) / rows * 2
+    target = np.array([0.0, -0.14, 0.0])
+    cp, sp = np.cos(pitch), np.sin(pitch)
+    ro = target + np.array([np.sin(yaw) * cp, sp, np.cos(yaw) * cp]) * dist
+    fw = target - ro; fw /= np.linalg.norm(fw)
+    rt = np.cross(fw, [0, 1, 0]); rt /= np.linalg.norm(rt)
+    up = np.cross(rt, fw)
+    rd = u[..., None] * rt + v[..., None] * up + fov * fw
+    rd /= nrm(rd)[..., None]
+
+    t = np.zeros(rd.shape[:-1])
+    alive = np.ones(t.shape, bool)
+    for _ in range(120):
+        h = map_(ro + rd * t[..., None])
+        alive &= h >= 0.0009
+        t = np.where(alive, t + h * 0.92, t)
+        alive &= t < 9.0
+    p = ro + rd * t[..., None]
+    hit = (map_(p) < 0.004) & (t < 9.0)
+
+    n = normal(p)
+    occ = ao(p, n) ** 1.15
+    front = np.clip((n * -rd).sum(-1), 0, 1)
+    key = -rd * 0.75 + np.array([-0.34, 0.54, 0.0])
+    key = key / nrm(key)[..., None]
+    dif = np.clip((n * key).sum(-1), 0, 1)
+    sil = np.clip(1.0 - front, 0, 1) ** 3.0
+    lum = 0.05 + occ * (0.40 * front ** 0.6 + 0.60 * dif) + 0.20 * occ * sil
+    lum = np.clip((lum - 0.04) / 0.90, 0, 1)
+    return np.where(hit, lum, 0.0)
+
+
+# -------------------------------------------------------------------- output
+W, H = 1200.0, 400.0
+FS = 8.5                  # font size in px
+ADV = FS * 0.6            # advance width the grid is pinned to
+COLS = int(W // ADV)
+ROWS = int(H // FS)
+X0 = (W - COLS * ADV) / 2
+Y0 = (H - ROWS * FS) / 2
+FRAMES = 16
+DUR = 3.6                 # seconds for one full sway
+RAMP = " .:-=+*#%@"
+LIT = 6                   # ramp index at which a glyph joins the bright layer
+
 BG = "#05060f"
-VIOLET = "#7c5cff"
-CYAN = "#4cc9f0"
-GOLD = "#ffd166"
-PINK = "#ff8fd1"
-
-N8 = 260     # path vertices for the figure-eight (geometry, shared once)
-NK = 160     # path vertices per Kepler ellipse
-TS = 64      # samples of the timing curve (duplicated per trail ghost)
-LOOP = 18.0  # seconds mapped onto one figure-eight period
-
-# ------------------------------------------------------- schwarzschild orbit
-# A Schwarzschild orbit obeys d2u/dphi2 + u = GM/h^2 + 3GM u^2/c^2, i.e. an
-# extra 1/r^4 term in the radial acceleration. It precesses, so a generic orbit
-# never closes -- useless for a seamless loop. But if the apsidal advance per
-# radial period is exactly 2*pi*p/q, the path closes after q radial periods and
-# draws a q-petal rosette. So we bisect the relativistic coefficient until the
-# advance lands precisely on that rational.
-def _pn_step(st, dt, h2, eps):
-    def d(u):
-        r2 = u[0] * u[0] + u[1] * u[1]
-        r = math.sqrt(r2)
-        f = -(1.0 / (r2 * r)) - eps * h2 / (r2 * r2 * r)
-        return [u[2], u[3], f * u[0], f * u[1]]
-    k1 = d(st)
-    k2 = d([st[i] + 0.5 * dt * k1[i] for i in range(4)])
-    k3 = d([st[i] + 0.5 * dt * k2[i] for i in range(4)])
-    k4 = d([st[i] + dt * k3[i] for i in range(4)])
-    return [st[i] + dt / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])
-            for i in range(4)]
+DIM = "#2f3766"
 
 
-def _radial_period(eps, e, dt=2e-4):
-    """One periapsis-to-periapsis pass: returns (period, angle swept)."""
-    v0 = math.sqrt(1.0 + e)
-    st = [1.0, 0.0, 0.0, v0]
-    h2 = v0 * v0
-    t, phi, prev_vr = 0.0, 0.0, 0.0
-    px, py = st[0], st[1]
-    while t < 400:
-        st = _pn_step(st, dt, h2, eps)
-        t += dt
-        cx, cy = st[0], st[1]
-        dphi = math.atan2(px * cy - py * cx, px * cx + py * cy)
-        phi += dphi
-        px, py = cx, cy
-        r = math.hypot(cx, cy)
-        vr = (cx * st[2] + cy * st[3]) / r
-        if t > dt * 10 and prev_vr < 0 <= vr:
-            frac = -prev_vr / (vr - prev_vr)
-            return t - dt * (1 - frac), phi - dphi * (1 - frac)
-        prev_vr = vr
-    raise RuntimeError("no periapsis found")
+def esc(s):
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def rosette(q=5, p=1, e=0.55, n=N8):
-    """A closed q-petal relativistic rosette, sampled at equal steps of time."""
-    target = 2 * math.pi * (1 + p / q)
-    lo, hi = 0.0, 0.02
-    while _radial_period(hi, e)[1] < target:
-        hi *= 1.6
-    for _ in range(70):
-        mid = (lo + hi) / 2
-        if _radial_period(mid, e)[1] < target:
-            lo = mid
-        else:
-            hi = mid
-    eps = (lo + hi) / 2
-    period, _ = _radial_period(eps, e)
-    v0 = math.sqrt(1.0 + e)
-    st = [1.0, 0.0, 0.0, v0]
-    h2 = v0 * v0
-    sub = 60
-    dt = q * period / (n * sub)
-    pts = []
-    for _ in range(n):
-        pts.append((st[0], st[1]))
-        for _ in range(sub):
-            st = _pn_step(st, dt, h2, eps)
-    closure = math.hypot(st[0] - 1.0, st[1])
-    assert closure < 1e-6, "rosette failed to close: %.2e" % closure
-    return pts, eps, closure
+def main():
+    top = len(RAMP) - 1
+    parts = []
+    for f in range(FRAMES):
+        phase = 2 * np.pi * f / FRAMES
+        lum = render(COLS, ROWS,
+                     yaw=0.62 * np.sin(phase),
+                     pitch=0.11 + 0.07 * np.cos(phase * 0.5),
+                     dist=2.00, cellw=ADV / FS)
+        idx = np.clip((lum * top + 0.5).astype(int), 0, top)
+
+        # two layers: the falloff in a flat dim colour, the highlights in the
+        # gradient, so the form has some depth instead of reading as a stencil
+        g = ['<g class="f f%d">' % f]
+        for cls, lo, hi in (("d", 2, LIT - 1), ("l", LIT, top)):
+            for r in range(ROWS):
+                line = "".join(RAMP[i] if lo <= i <= hi else " " for i in idx[r])
+                s = line.rstrip()
+                if not s.strip():
+                    continue
+                lead = len(s) - len(s.lstrip())
+                s = s[lead:]
+                g.append(
+                    '<text class="%s" x="%.2f" y="%.2f" textLength="%.2f" '
+                    'lengthAdjust="spacing" xml:space="preserve">%s</text>'
+                    % (cls, X0 + lead * ADV, Y0 + (r + 0.79) * FS,
+                       len(s) * ADV, esc(s)))
+        g.append('</g>')
+        parts.append("".join(g))
+        print("frame %2d/%d  %d rows" % (f + 1, FRAMES, parts[-1].count("<text")))
+
+    slot = 100.0 / FRAMES
+    delays = "".join(".f%d{animation-delay:%.3fs}" % (i, DUR * i / FRAMES)
+                     for i in range(FRAMES))
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" '
+        'width="1200" height="400" role="img" '
+        'aria-label="A human skull drawn entirely in monospace characters, '
+        'turning slowly between three-quarter views.">\n'
+        '<style>\n'
+        'text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'
+        '"DejaVu Sans Mono",monospace;font-size:%.1fpx}\n'
+        '.d{fill:%s}\n'
+        '.l{fill:url(#bone)}\n'
+        '.f{opacity:0;animation:flick %.2fs steps(1) infinite}\n'
+        '@keyframes flick{0%%{opacity:1}%.4f%%{opacity:0}100%%{opacity:0}}\n'
+        '%s\n'
+        '@media (prefers-reduced-motion:reduce){.f{animation:none}.f0{opacity:1}}\n'
+        '</style>\n'
+        '<defs><linearGradient id="bone" x1="0" y1="0" x2="0.9" y2="1">'
+        '<stop offset="0" stop-color="#7c5cff"/>'
+        '<stop offset="0.45" stop-color="#4cc9f0"/>'
+        '<stop offset="1" stop-color="#ffd166"/></linearGradient></defs>\n'
+        '<rect width="1200" height="400" fill="%s"/>\n'
+        '%s\n</svg>\n'
+    ) % (FS, DIM, DUR, slot, delays, BG, "\n".join(parts))
+
+    with open("assets/hero.svg", "w", encoding="utf-8") as fh:
+        fh.write(svg)
+    print("wrote assets/hero.svg  %.1f KB  %d frames  %dx%d cells"
+          % (len(svg.encode("utf-8")) / 1024, FRAMES, COLS, ROWS))
 
 
-# ---------------------------------------------------------------- svg output
-def path_d(pts):
-    d = "M%.1f,%.1f" % pts[0]
-    d += "".join("L%.1f,%.1f" % p for p in pts[1:])
-    return d + "Z"
-
-
-def key_pairs(pts, samples=TS):
-    """The timing curve: arc-length fraction travelled vs. fraction of period.
-
-    The path geometry is kept at full resolution and shared by every ghost, but
-    this curve is smooth and monotonic, so a coarse piecewise-linear sampling of
-    it is visually exact -- and it is what gets duplicated per trail element.
-    """
-    closed = list(pts) + [pts[0]]
-    cum, total = [0.0], 0.0
-    for i in range(1, len(closed)):
-        total += math.dist(closed[i - 1], closed[i])
-        cum.append(total)
-    n = len(closed) - 1
-    kp, kt = [], []
-    for j in range(samples + 1):
-        t = j / samples
-        f = t * n
-        i0 = min(int(f), n - 1)
-        c = cum[i0] + (cum[i0 + 1] - cum[i0]) * (f - i0)
-        kp.append("%.4f" % (c / total))
-        kt.append("%.4f" % t)
-    return ";".join(kp), ";".join(kt)
-
-
-KP, KT = {}, {}
-defs, guides, art = [], [], []
-
-
-def motion(pid, dur, begin):
-    return ('<animateMotion dur="%gs" begin="%gs" repeatCount="indefinite" '
-            'calcMode="linear" keyPoints="%s" keyTimes="%s">'
-            '<mpath xlink:href="#%s" href="#%s"/></animateMotion>'
-            % (dur, begin, KP[pid], KT[pid], pid, pid))
-
-
-PL = 1000.0   # forced pathLength, so dash units are per-mille of the orbit
-
-
-def emit_system(pts, pid, colour, name, dur, tails, r_head=4.4,
-                guide_op=0.10, riders=None):
-    """One orbiting body: faint guide ellipse, comet tail, glowing head.
-
-    The tail is a single dashed stroke whose dash is exactly as long as the
-    desired tail and whose gap fills the rest of the closed orbit, so the
-    pattern wraps seamlessly. Animating stroke-dashoffset along the SAME
-    arc-length timing curve as the head keeps the tail physically correct --
-    it stretches at periapsis and bunches up at apoapsis -- for three elements
-    instead of twenty ghost dots.
-    """
-    kp, kt = key_pairs(pts)
-    KP[pid], KT[pid] = kp, kt
-    defs.append('<path id="%s" pathLength="%g" d="%s"/>'
-                % (pid, PL, path_d(pts)))
-    guides.append('<use xlink:href="#%s" href="#%s" fill="none" stroke="%s" '
-                  'stroke-width="1" opacity="%.2f"/>'
-                  % (pid, pid, colour, guide_op))
-    # several bodies may ride the same orbit, offset in phase
-    for phase, rc, rn in (riders or ((0.0, colour, name),)):
-        off = -phase * dur
-        for length, width, op in tails:
-            # dash leading edge sits on the body: offset = length - s(t)
-            vals = ";".join("%.1f" % (length - PL * float(f))
-                            for f in kp.split(";"))
-            art.append('<use xlink:href="#%s" href="#%s" fill="none" '
-                       'stroke="%s" stroke-width="%.1f" stroke-linecap="round" '
-                       'opacity="%.3f" stroke-dasharray="%g %g">'
-                       '<animate attributeName="stroke-dashoffset" dur="%gs" '
-                       'begin="%gs" repeatCount="indefinite" calcMode="linear" '
-                       'values="%s" keyTimes="%s"/></use>'
-                       % (pid, pid, rc, width, op, length, PL - length,
-                          dur, off, vals, kt))
-        art.append('<g><circle r="%.1f" fill="url(#halo-%s)"/>'
-                   '<circle r="%.2f" fill="%s" opacity="0.9"/>'
-                   '<circle r="%.2f" fill="#ffffff"/>%s</g>'
-                   % (r_head * 4.2, rn, r_head, rc, r_head * 0.44,
-                      motion(pid, dur, off)))
-
-
-# ---------------------------------------------------------------- the scene
-# One star, seen with its orbital plane tilted away from us, sitting at the
-# bottom of its own gravity well.
-CX, CY = W / 2, 186.0
-TILT = 0.36          # cos of the viewing inclination: a circle reads as an ellipse
-R_ORB = 262.0        # planet's orbital radius, in the plane
-PULL = 4300.0        # how hard the star drags the lattice inward
-
-
-def project(x, y):
-    """Plane coordinates -> screen. The orbital plane is tilted away from us,
-    so every circular orbit reads as an ellipse."""
-    return CX + x, CY + y * TILT
-
-
-def warp(px, py):
-    """Pull a lattice node toward the star, falling off as 1/distance. Only the
-    sheet is bent; the bodies stay where they actually are."""
-    ox, oy = px - CX, py - CY
-    d = math.hypot(ox, oy) + 26.0
-    pull = min(PULL / d, d * 0.62)
-    return px - ox / d * pull, py - oy / d * pull
-
-
-# ---- the sheet -------------------------------------------------------------
-# Static, because the only mass heavy enough to bend it visibly does not move.
-GRID = []
-GX, GY = 690.0, 620.0
-GSTEP_X = 56.0                  # screen spacing directly
-GSTEP_Y = GSTEP_X / TILT        # foreshortened to the same spacing on screen
-GFINE_X, GFINE_Y = 18.0, 26.0
-
-
-def _grid_line(pts):
-    d = "M%.1f,%.1f" % pts[0] + "".join("L%.1f,%.1f" % q for q in pts[1:])
-    GRID.append('<path d="%s"/>' % d)
-
-
-y = -GY
-while y <= GY + 0.1:
-    line, x = [], -GX
-    while x <= GX + 0.1:
-        line.append(warp(*project(x, y)))
-        x += GFINE_X
-    _grid_line(line)
-    y += GSTEP_Y
-x = -GX
-while x <= GX + 0.1:
-    line, y = [], -GY
-    while y <= GY + 0.1:
-        line.append(warp(*project(x, y)))
-        y += GFINE_Y
-    _grid_line(line)
-    x += GSTEP_X
-
-guides.append('<g fill="none" stroke="%s" stroke-width="0.8" opacity="0.23">'
-              '%s</g>' % (VIOLET, "".join(GRID)))
-
-# ---- the planet's orbit, shared by everything that rides it ----------------
-P_DUR = 24.0
-ORBIT = [project(R_ORB * math.cos(2 * math.pi * i / NK),
-                 R_ORB * math.sin(2 * math.pi * i / NK)) for i in range(NK)]
-
-emit_system(ORBIT, "orb", CYAN, "cyan", P_DUR,
-            tails=((70, 2.4, 0.40), (210, 1.4, 0.16)),
-            r_head=4.6, guide_op=0.16)
-
-# ---- trojans ---------------------------------------------------------------
-# L4 and L5 sit sixty degrees ahead of and behind the planet on the very same
-# orbit, so one path and a phase offset per body is all this costs.
-TROJ = []
-for lead in (1, -1):
-    for i in range(23):
-        spread = (rnd_spread := ((i * 7 % 23) / 23.0 - 0.5)) * 0.115
-        phase = (lead * 60.0 / 360.0) + spread
-        size = 1.15 + ((i * 5 % 23) / 23.0) * 1.05
-        op = 0.45 + ((i * 11 % 23) / 23.0) * 0.42
-        col = VIOLET if lead > 0 else PINK
-        TROJ.append('<circle r="%.2f" fill="%s" opacity="%.2f">%s</circle>'
-                    % (size, col, op, motion("orb", P_DUR, -phase * P_DUR)))
-art.append('<g>%s</g>' % "".join(TROJ))
-
-# ---- an inner body on a relativistic rosette -------------------------------
-ROS_PTS, ROS_EPS, ROS_ERR = rosette(q=5, e=0.55)
-_rs = 138.0 / max(math.hypot(*q) for q in ROS_PTS)
-emit_system([project(x * _rs, y * _rs) for x, y in ROS_PTS],
-            "rose", GOLD, "gold", 19.0,
-            tails=((55, 2.2, 0.42), (165, 1.4, 0.20), (470, 0.8, 0.09)),
-            r_head=3.2, guide_op=0.10,
-            riders=((0.0, GOLD, "gold"),))
-
-# ---- the star, at the bottom of its own well -------------------------------
-_sx, _sy = project(0.0, 0.0)
-art.append('<g transform="translate(%.1f %.1f)">'
-           '<circle r="62" fill="url(#halo-core)"/>'
-           '<circle r="9" fill="#fff6e0"/>'
-           '<circle r="13" fill="none" stroke="%s" stroke-width="0.9">'
-           '<animate attributeName="r" values="12;30;12" dur="6s" '
-           'repeatCount="indefinite"/>'
-           '<animate attributeName="opacity" values="0.5;0;0.5" dur="6s" '
-           'repeatCount="indefinite"/></circle></g>' % (_sx, _sy, GOLD))
-
-# ---- starfield -------------------------------------------------------------
-_seed = 1234567
-
-
-def rand():
-    global _seed
-    _seed = (1103515245 * _seed + 12345) % (1 << 31)
-    return _seed / (1 << 31)
-
-
-stars = []
-for _ in range(170):
-    x, y, r = rand() * W, rand() * H, 0.35 + rand() * 1.15
-    o, d = 0.25 + rand() * 0.55, 2.5 + rand() * 5.0
-    stars.append('<circle cx="%.1f" cy="%.1f" r="%.2f" fill="#dfe8ff" '
-                 'opacity="%.2f" style="animation:tw %.2fs ease-in-out %.2fs '
-                 'infinite"/>' % (x, y, r, o, d, rand() * d))
-
-
-def halo(n, c):
-    return ('<radialGradient id="halo-%s"><stop offset="0" stop-color="%s" '
-            'stop-opacity="0.8"/><stop offset="0.4" stop-color="%s" '
-            'stop-opacity="0.2"/><stop offset="1" stop-color="%s" '
-            'stop-opacity="0"/></radialGradient>' % (n, c, c, c))
-
-
-svg = """<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 {w:.0f} {h:.0f}" width="{w:.0f}" height="{h:.0f}" role="img" aria-label="A star bending a lattice of spacetime, orbited by a planet with trojan swarms at its L4 and L5 points, and an inner body tracing a relativistic rosette.">
-<style>
-  @keyframes tw {{ 0%,100% {{ opacity:.18 }} 50% {{ opacity:.9 }} }}
-  @keyframes drift {{ 0%,100% {{ transform:translate(0,0) }} 50% {{ transform:translate(-16px,9px) }} }}
-  .neb {{ animation: drift 26s ease-in-out infinite }}
-</style>
-<defs>
-  {halos}
-  <radialGradient id="neb1"><stop offset="0" stop-color="{v}" stop-opacity="0.30"/><stop offset="1" stop-color="{v}" stop-opacity="0"/></radialGradient>
-  <radialGradient id="neb2"><stop offset="0" stop-color="{c}" stop-opacity="0.22"/><stop offset="1" stop-color="{c}" stop-opacity="0"/></radialGradient>
-  <radialGradient id="neb3"><stop offset="0" stop-color="{g}" stop-opacity="0.14"/><stop offset="1" stop-color="{g}" stop-opacity="0"/></radialGradient>
-  <linearGradient id="vign" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0.4"/><stop offset="0.5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.45"/></linearGradient>
-  {defs}
-</defs>
-<rect width="{w:.0f}" height="{h:.0f}" fill="{bg}"/>
-<g class="neb">
-  <ellipse cx="600" cy="180" rx="470" ry="215" fill="url(#neb1)"/>
-  <ellipse cx="240" cy="250" rx="330" ry="190" fill="url(#neb2)"/>
-  <ellipse cx="980" cy="130" rx="300" ry="170" fill="url(#neb3)"/>
-</g>
-<g>{stars}</g>
-<g>{guides}</g>
-<g>{art}</g>
-<rect width="{w:.0f}" height="{h:.0f}" fill="url(#vign)"/>
-</svg>
-""".format(w=W, h=H, bg=BG, v=VIOLET, c=CYAN, g=GOLD,
-           halos="".join(halo(n, c) for n, c in
-                         (("violet", VIOLET), ("cyan", CYAN),
-                          ("gold", GOLD), ("pink", PINK),
-                          ("core", GOLD))),
-           defs="".join(defs), stars="".join(stars),
-           guides="".join(guides), art="".join(art))
-
-out = r"C:\Users\aksha\OneDrive\Documents\akshatdalakoti-stack\assets\hero.svg"
-with open(out, "w", encoding="utf-8") as f:
-    f.write(svg)
-print("wrote %s  (%.1f KB, %d animated bodies)"
-      % (out, len(svg) / 1024, len(KP)))
+if __name__ == "__main__":
+    main()
