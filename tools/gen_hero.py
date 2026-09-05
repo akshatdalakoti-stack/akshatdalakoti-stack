@@ -94,15 +94,15 @@ def map_(p):
                             np.array([0.95, 0.66, 0.72])), 0.20)
     d = smin(d, sdEllipsoid(p, np.array([0.0, -0.25, 0.31]),
                             np.array([0.405, 0.480, 0.385])), 0.20)
-    d = smin(d, sdCapsule(p, [-0.34, 0.19, 0.485], [0.34, 0.19, 0.485], 0.120), 0.13)
+    d = smin(d, sdCapsule(m, [0.055, 0.215, 0.495], [0.335, 0.150, 0.435], 0.115), 0.13)
     d = smin(d, sdCapsule(m, [0.40, -0.03, 0.365], [0.560, 0.04, -0.22], 0.058), 0.10)
     d = ssub(d, sdEllipsoid(m, np.array([0.860, 0.30, 0.02]),
                             np.array([0.340, 0.420, 0.500])), 0.16)
-    d = ssub(d, sdEllipsoid(m, np.array([0.305, -0.01, 0.38]),
-                            np.array([0.195, 0.228, 0.44])), 0.042)
-    nose = sdEllipsoid(p, np.array([0.0, -0.30, 0.50]), np.array([0.140, 0.130, 0.26]))
-    nose = smin(nose, sdEllipsoid(p, np.array([0.0, -0.04, 0.50]),
-                                  np.array([0.036, 0.165, 0.24])), 0.075)
+    d = ssub(d, sdEllipsoid(m, np.array([0.275, -0.01, 0.37]),
+                            np.array([0.215, 0.235, 0.46])), 0.040)
+    nose = sdEllipsoid(p, np.array([0.0, -0.44, 0.545]), np.array([0.115, 0.100, 0.170]))
+    nose = smin(nose, sdEllipsoid(p, np.array([0.0, -0.32, 0.545]),
+                                  np.array([0.036, 0.120, 0.160])), 0.065)
     d = ssub(d, nose, 0.032)
     d = smin(d, arch(p, -0.660, 0.19, 0.290, 0.050, 20.0, 1.32), 0.03)
 
@@ -137,7 +137,7 @@ def ao(p, n):
     return np.clip(1.0 - 3.0 * s, 0.0, 1.0)
 
 
-def render(cols, rows, yaw, pitch, dist, cellw, fov=1.75):
+def render(cols, rows, yaw, pitch, dist, cellw, phase=0.0, fov=1.75):
     ys, xs = np.mgrid[0:rows, 0:cols]
     u = ((xs + 0.5) / cols * 2 - 1) * (cols * cellw) / rows
     v = 1 - (ys + 0.5) / rows * 2
@@ -163,30 +163,37 @@ def render(cols, rows, yaw, pitch, dist, cellw, fov=1.75):
     n = normal(p)
     occ = ao(p, n) ** 1.15
     front = np.clip((n * -rd).sum(-1), 0, 1)
-    key = -rd * 0.75 + np.array([-0.34, 0.54, 0.0])
+    # the key swings through the loop, so shading changes everywhere every
+    # frame and the glyphs keep churning even where the geometry barely moves
+    key = -rd * 0.72 + np.array([-0.34 + 0.16 * np.sin(phase),
+                                 0.54 - 0.07 * np.cos(phase), 0.0])
     key = key / nrm(key)[..., None]
     dif = np.clip((n * key).sum(-1), 0, 1)
     sil = np.clip(1.0 - front, 0, 1) ** 3.0
-    lum = 0.05 + occ * (0.40 * front ** 0.6 + 0.60 * dif) + 0.20 * occ * sil
+    lum = 0.09 + occ * (0.30 * front ** 0.9 + 0.70 * dif) + 0.20 * occ * sil
     lum = np.clip((lum - 0.04) / 0.90, 0, 1)
-    return np.where(hit, lum, 0.0)
+    # a drifting ripple worth about half a ramp step: not enough to disturb the
+    # form, enough that glyphs sitting on a boundary keep flipping
+    shim = (np.sin(xs * 0.31 + ys * 0.17 + phase) +
+            np.sin(xs * 0.13 - ys * 0.29 + 2.0 * phase))
+    return np.where(hit, np.clip(lum + 0.018 * shim, 0, 1), 0.0)
 
 
 # -------------------------------------------------------------------- output
 W, H = 1200.0, 400.0
-FS = 8.5                  # font size in px
+FS = 12.5                 # font size in px
 ADV = FS * 0.6            # advance width the grid is pinned to
 COLS = int(W // ADV)
 ROWS = int(H // FS)
 X0 = (W - COLS * ADV) / 2
 Y0 = (H - ROWS * FS) / 2
-FRAMES = 16
-DUR = 3.6                 # seconds for one full sway
+FRAMES = 26
+DUR = 4.2                 # seconds for one full sway
 RAMP = " .:-=+*#%@"
-LIT = 6                   # ramp index at which a glyph joins the bright layer
+LIT = 5                   # ramp index at which a glyph joins the bright layer
 
 BG = "#05060f"
-DIM = "#2f3766"
+DIM = "#3f4a9e"
 
 
 def esc(s):
@@ -201,7 +208,7 @@ def main():
         lum = render(COLS, ROWS,
                      yaw=0.62 * np.sin(phase),
                      pitch=0.11 + 0.07 * np.cos(phase * 0.5),
-                     dist=2.00, cellw=ADV / FS)
+                     dist=1.92, cellw=ADV / FS, phase=phase)
         idx = np.clip((lum * top + 0.5).astype(int), 0, top)
 
         # two layers: the falloff in a flat dim colour, the highlights in the
@@ -242,9 +249,10 @@ def main():
         '%s\n'
         '@media (prefers-reduced-motion:reduce){.f{animation:none}.f0{opacity:1}}\n'
         '</style>\n'
-        '<defs><linearGradient id="bone" x1="0" y1="0" x2="0.9" y2="1">'
-        '<stop offset="0" stop-color="#7c5cff"/>'
-        '<stop offset="0.45" stop-color="#4cc9f0"/>'
+        '<defs><linearGradient id="bone" gradientUnits="userSpaceOnUse" '
+        'x1="470" y1="30" x2="760" y2="390">'
+        '<stop offset="0" stop-color="#a68cff"/>'
+        '<stop offset="0.45" stop-color="#7ce0ff"/>'
         '<stop offset="1" stop-color="#ffd166"/></linearGradient></defs>\n'
         '<rect width="1200" height="400" fill="%s"/>\n'
         '%s\n</svg>\n'

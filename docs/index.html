@@ -18,16 +18,16 @@
     --panel: rgba(14, 16, 34, 0.72);
     --line: rgba(124, 92, 255, 0.22);
     --fs: 13px;
-    --dim: #2f3766;
+    --dim: #3f4a9e;
     --lit: #cfd8ff;
     --emb: #ff8a3c;
     --glow: rgba(124, 92, 255, 0.55);
   }
   /* the four palettes only ever move these three colours plus the glow */
-  body[data-pal="bone"]  { --dim:#3a3a52; --lit:#f3ece0; --emb:#ff8a3c; --glow:rgba(255,209,102,.4) }
-  body[data-pal="synth"] { --dim:#2f3766; --lit:#cfe4ff; --emb:#ff5ea8; --glow:rgba(124,92,255,.55) }
-  body[data-pal="phos"]  { --dim:#12401f; --lit:#8bffa8; --emb:#eaff6b; --glow:rgba(60,255,120,.35) }
-  body[data-pal="ash"]   { --dim:#26262b; --lit:#e6e6e8; --emb:#e6e6e8; --glow:rgba(255,255,255,.18) }
+  body[data-pal="bone"]  { --dim:#5a5a78; --lit:#f3ece0; --emb:#ff8a3c; --glow:rgba(255,209,102,.4) }
+  body[data-pal="synth"] { --dim:#3f4a9e; --lit:#dfeeff; --emb:#ff5ea8; --glow:rgba(124,92,255,.55) }
+  body[data-pal="phos"]  { --dim:#1d6b30; --lit:#8bffa8; --emb:#eaff6b; --glow:rgba(60,255,120,.35) }
+  body[data-pal="ash"]   { --dim:#45454d; --lit:#e6e6e8; --emb:#e6e6e8; --glow:rgba(255,255,255,.18) }
 
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -292,6 +292,7 @@ uniform float uPitch;
 uniform float uDist;
 uniform float uJaw;
 uniform float uGamma;
+uniform float uTime;
 out vec4 fragColor;
 
 /* ------------------------------------------------------------ primitives */
@@ -350,16 +351,17 @@ float map(vec3 p) {
   // facial mass hung off the front
   d = smin(d, sdEllipsoid(p - vec3(0.0, -0.25, 0.31), vec3(0.405, 0.480, 0.385)), 0.20);
   // brow ridge
-  d = smin(d, sdCapsule(p, vec3(-0.34, 0.19, 0.485), vec3(0.34, 0.19, 0.485), 0.120), 0.13);
+  d = smin(d, sdCapsule(m, vec3(0.055, 0.215, 0.495), vec3(0.335, 0.150, 0.435), 0.115), 0.13);
   // zygomatic arch, orbit rim back to the ear
   d = smin(d, sdCapsule(m, vec3(0.40, -0.03, 0.365), vec3(0.560, 0.04, -0.22), 0.058), 0.10);
   // temporal hollow
   d = ssub(d, sdEllipsoid(m - vec3(0.860, 0.30, 0.02), vec3(0.340, 0.420, 0.500)), 0.16);
   // orbits
-  d = ssub(d, sdEllipsoid(m - vec3(0.305, -0.01, 0.38), vec3(0.195, 0.228, 0.44)), 0.042);
-  // nasal aperture: wide at the base, pinched to a slit at the bridge
-  float nose = sdEllipsoid(p - vec3(0.0, -0.30, 0.50), vec3(0.140, 0.130, 0.26));
-  nose = smin(nose, sdEllipsoid(p - vec3(0.0, -0.04, 0.50), vec3(0.036, 0.165, 0.24)), 0.075);
+  d = ssub(d, sdEllipsoid(m - vec3(0.275, -0.01, 0.37), vec3(0.215, 0.235, 0.46)), 0.040);
+  // nasal aperture: sits below the orbits. Any higher and it splits the
+  // bridge into two columns, which stops the mid-face reading as a face.
+  float nose = sdEllipsoid(p - vec3(0.0, -0.44, 0.545), vec3(0.115, 0.100, 0.170));
+  nose = smin(nose, sdEllipsoid(p - vec3(0.0, -0.32, 0.545), vec3(0.036, 0.120, 0.160)), 0.065);
   d = ssub(d, nose, 0.032);
   // upper dental arch
   d = smin(d, arch(p, -0.660, 0.19, 0.290, 0.050, 20.0, 1.32), 0.03);
@@ -426,19 +428,27 @@ void main() {
     // carried by occlusion instead of by cast shadow.
     float occ = pow(ao(p, n), 1.15);
     float front = clamp(dot(n, -rd), 0.0, 1.0);
-    vec3 key = normalize(-rd * 0.75 + vec3(-0.34, 0.54, 0.0));
+    vec3 key = normalize(-rd * 0.72 + vec3(-0.34 + 0.16 * sin(uTime * 0.55),
+                                            0.54 - 0.07 * cos(uTime * 0.55), 0.0));
     float dif = clamp(dot(n, key), 0.0, 1.0);
     float sil = pow(clamp(1.0 - front, 0.0, 1.0), 3.0);
 
-    lum = 0.05 + occ * (0.40 * pow(front, 0.6) + 0.60 * dif) + 0.20 * occ * sil;
+    lum = 0.09 + occ * (0.30 * pow(front, 0.9) + 0.70 * dif) + 0.20 * occ * sil;
     lum = clamp((lum - 0.04) / 0.90, 0.0, 1.0);
 
     // something burning back in the orbits
-    vec3 e = vec3(abs(p.x), p.y, p.z) - vec3(0.305, -0.01, 0.14);
-    ember = smoothstep(1.05, 0.25, length(e / vec3(0.185, 0.205, 0.30)));
+    vec3 e = vec3(abs(p.x), p.y, p.z) - vec3(0.275, -0.01, 0.13);
+    ember = smoothstep(1.05, 0.25, length(e / vec3(0.205, 0.215, 0.31)));
     lum += ember * 0.85;
   }
 
+  // A drifting ripple worth about a third of a ramp step. The geometry alone
+  // leaves large patches of the face on the same glyph for seconds at a time;
+  // this keeps every cell turning over without disturbing the form.
+  if (hit) {
+    lum += 0.018 * (sin(gl_FragCoord.x * 0.31 + gl_FragCoord.y * 0.17 + uTime * 0.9)
+                  + sin(gl_FragCoord.x * 0.13 - gl_FragCoord.y * 0.29 + uTime * 1.7));
+  }
   lum = pow(clamp(lum, 0.0, 1.0), 1.0 / uGamma);
   fragColor = vec4(lum, ember, 0.0, 1.0);
 }`;
@@ -549,7 +559,7 @@ void main() {
   function toText() {
     const ramp = RAMPS[S.ramp].chars;
     const top = ramp.length - 1;
-    const litCut = Math.max(2, Math.round(top * 0.62));
+    const litCut = Math.max(2, Math.round(top * 0.52));
     for (let y = 0; y < ROWS; y++) {
       // readPixels hands back rows bottom-up; text runs top-down
       let o = (ROWS - 1 - y) * COLS * 4;
@@ -591,6 +601,7 @@ void main() {
     gl.uniform1f(prog.u.uDist, S.dist);
     gl.uniform1f(prog.u.uJaw, S.jaw + 0.035 * Math.sin(now * 0.0006));
     gl.uniform1f(prog.u.uGamma, S.gamma);
+    gl.uniform1f(prog.u.uTime, now * 0.001);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.readPixels(0, 0, COLS, ROWS, gl.RGBA, gl.UNSIGNED_BYTE, pix);
     toText();
@@ -700,10 +711,18 @@ void main() {
   });
 
   let resizeTimer = 0;
-  addEventListener('resize', () => {
+  function relayoutSoon() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(layout, 150);
-  });
+  }
+  addEventListener('resize', relayoutSoon);
+  // A plain resize listener is not enough: if the first layout runs before the
+  // viewport has settled -- a cold load, a restored tab, an embed that sizes
+  // itself late -- the grid sticks at its minimum and never recovers, because
+  // no resize event ever fires. Watching the element catches those.
+  if (window.ResizeObserver) {
+    new ResizeObserver(relayoutSoon).observe(document.documentElement);
+  }
 
   /* ----------------------------------------------------------------- loop */
   let last = performance.now(), fps = 60, frame = 0, sway = 0.9;
