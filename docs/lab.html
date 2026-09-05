@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Lab — five things that move</title>
+<meta name="description" content="A space-filling curve, dielectric breakdown, a slime mold network, a rotating tesseract, and a horizon. Five live simulations.">
+<meta name="color-scheme" content="dark">
+<style>
+  :root {
+    --bg: #05060f; --violet: #7c5cff; --cyan: #4cc9f0; --gold: #ffd166;
+    --ink: #e8ecff; --muted: #8b93b8;
+    --panel: rgba(14, 16, 34, 0.72); --line: rgba(124, 92, 255, 0.22);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  canvas { display: block; position: fixed; inset: 0; touch-action: none; }
+
+  .panel {
+    position: fixed; z-index: 3;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
+  }
+  #title { top: 18px; left: 18px; padding: 14px 18px; max-width: 360px; }
+  #title h1 {
+    margin: 0; font-size: 16px; letter-spacing: 0.24em; text-transform: uppercase;
+    background: linear-gradient(92deg, var(--violet), var(--cyan) 55%, var(--gold));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  #title p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+  #hud {
+    top: 18px; right: 18px; padding: 10px 14px;
+    font: 11.5px/1.7 ui-monospace, Consolas, monospace; color: var(--muted); min-width: 150px;
+  }
+  #hud b { color: var(--ink); font-weight: 600; float: right; margin-left: 14px; }
+
+  #bar {
+    bottom: 18px; left: 50%; transform: translateX(-50%);
+    padding: 10px 14px; display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap; justify-content: center; max-width: min(920px, calc(100vw - 36px));
+  }
+  button {
+    font: 11px ui-monospace, Consolas, monospace; letter-spacing: 0.06em;
+    color: var(--ink); background: rgba(124, 92, 255, 0.14);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px;
+    cursor: pointer; transition: background .15s, border-color .15s, transform .1s;
+    white-space: nowrap;
+  }
+  button:hover { background: rgba(76, 201, 240, 0.22); border-color: var(--cyan); }
+  button:active { transform: translateY(1px); }
+  button[aria-pressed="true"] { background: rgba(76,201,240,.30); border-color: var(--cyan); }
+  .sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+  a.back { color: var(--gold); text-decoration: none; font: 11px ui-monospace, Consolas, monospace; }
+  a.back:hover { text-decoration: underline; }
+
+  @media (max-width: 860px) {
+    #title { max-width: none; right: 18px; } #title p { display: none; } #hud { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="c" aria-label="Five live simulations"></canvas>
+
+<div class="panel" id="title">
+  <h1 id="tName">Space-filling curve</h1>
+  <p id="tDesc">One line that never crosses itself and still reaches every point.</p>
+</div>
+
+<div class="panel" id="hud">
+  <div id="hLabel">order <b id="hVal">—</b></div>
+  <div>fps <b id="hFps">0</b></div>
+</div>
+
+<div class="panel" id="bar">
+  <button data-s="curve" aria-pressed="true">curve</button>
+  <button data-s="bolt">lightning</button>
+  <button data-s="slime">slime</button>
+  <button data-s="tess">tesseract</button>
+  <button data-s="synth">horizon</button>
+  <div class="sep"></div>
+  <a class="back" href="./">&larr; transmutation</a>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const cv = $('c'), ctx = cv.getContext('2d');
+  let W = 0, H = 0, DPR = 1;
+
+  // Polled per frame rather than driven by a resize event: an observer on the
+  // document feeds back through the canvas resize, and a resize event never
+  // arrives if the first layout ran before the viewport had a size.
+  function ensureSize() {
+    if (!innerWidth || !innerHeight) return false;
+    if (innerWidth === W && innerHeight === H) return false;
+    DPR = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    return true;
+  }
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  function lerpC(a, b, t) {
+    t = Math.max(0, Math.min(1, t));
+    return 'rgb(' + Math.round(a[0] + (b[0] - a[0]) * t) + ',' +
+                    Math.round(a[1] + (b[1] - a[1]) * t) + ',' +
+                    Math.round(a[2] + (b[2] - a[2]) * t) + ')';
+  }
+  const VIOLET = [124, 92, 255], CYAN = [76, 201, 240], GOLD = [255, 209, 102];
+
+  /* ================================================== 1. space-filling curve */
+  const curve = {
+    name: 'Space-filling curve',
+    desc: 'One line that never crosses itself and still reaches every point. When it finishes, the order goes up and it starts again — four times the detail, same square.',
+    label: 'order',
+    order: 4, pts: [], head: 0, hold: 0,
+    build() {
+      const n = 1 << this.order, N = n * n;
+      const side = Math.min(W, H) * 0.78, ox = (W - side) / 2, oy = (H - side) / 2;
+      const sc = side / (n - 1);
+      this.pts = new Float32Array(N * 2);
+      for (let i = 0; i < N; i++) {
+        let x = 0, y = 0, t = i;
+        for (let s = 1; s < n; s *= 2) {
+          const rx = 1 & (t >> 1), ry = 1 & (t ^ rx);
+          if (ry === 0) {
+            if (rx === 1) { x = s - 1 - x; y = s - 1 - y; }
+            const q = x; x = y; y = q;
+          }
+          x += s * rx; y += s * ry; t >>= 2;
+        }
+        this.pts[i * 2] = ox + x * sc; this.pts[i * 2 + 1] = oy + y * sc;
+      }
+      this.head = 0; this.hold = 0;
+    },
+    init() { this.order = 4; this.build(); },
+    frame(dt) {
+      const N = this.pts.length / 2;
+      if (this.head < N) this.head = Math.min(N, this.head + dt * N / 4.2);
+      else { this.hold += dt; if (this.hold > 1.3) { this.order = this.order >= 7 ? 4 : this.order + 1; this.build(); } }
+      ctx.fillStyle = '#05060f'; ctx.fillRect(0, 0, W, H);
+      const h = Math.floor(this.head);
+      ctx.lineWidth = Math.max(1, 5 - this.order * 0.55);
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      // one stroke per colour band keeps this to a few dozen path objects
+      const BANDS = 46, per = Math.ceil(N / BANDS);
+      for (let b = 0; b < BANDS; b++) {
+        const s = b * per, e = Math.min(h, s + per + 1);
+        if (e <= s) break;
+        const t = b / BANDS;
+        ctx.strokeStyle = t < 0.55 ? lerpC(VIOLET, CYAN, t / 0.55) : lerpC(CYAN, GOLD, (t - 0.55) / 0.45);
+        ctx.beginPath(); ctx.moveTo(this.pts[s * 2], this.pts[s * 2 + 1]);
+        for (let i = s + 1; i < e; i++) ctx.lineTo(this.pts[i * 2], this.pts[i * 2 + 1]);
+        ctx.stroke();
+      }
+      if (h > 0 && h < N) {
+        ctx.fillStyle = '#fff'; ctx.shadowBlur = 16; ctx.shadowColor = '#ffd166';
+        ctx.beginPath(); ctx.arc(this.pts[(h - 1) * 2], this.pts[(h - 1) * 2 + 1], 4, 0, 6.283); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      return this.order;
+    }
+  };
+
+  /* ===================================================== 2. lightning */
+  const bolt = {
+    name: 'Dielectric breakdown',
+    desc: 'A charge looking for ground. Each step picks a direction, wanders, and occasionally forks — the branch that reaches first is the one you see as the strike.',
+    label: 'bolts',
+    live: [], cool: 0,
+    seg(x, y, ang, len, depth, w, out) {
+      const steps = Math.max(3, len / 9 | 0);
+      for (let i = 0; i < steps; i++) {
+        const nx = x + Math.cos(ang) * 9, ny = y + Math.sin(ang) * 9;
+        out.push([x, y, nx, ny, w]);
+        x = nx; y = ny;
+        ang += rnd(-0.3, 0.3) + (Math.PI / 2 - ang) * 0.07;
+        if (depth > 0 && Math.random() < 0.1) {
+          this.seg(x, y, ang + (Math.random() < 0.5 ? -1 : 1) * rnd(0.4, 1.0),
+                   len * 0.45, depth - 1, w * 0.55, out);
+        }
+        if (y > H) break;
+      }
+    },
+    strike() {
+      const out = [];
+      this.seg(rnd(W * 0.18, W * 0.82), -10, Math.PI / 2 + rnd(-0.25, 0.25), H * 1.1, 4, 2.6, out);
+      this.live.push({ segs: out, life: 0 });
+      if (this.live.length > 5) this.live.shift();
+    },
+    init() { this.live = []; this.cool = 0; },
+    frame(dt) {
+      this.cool -= dt;
+      if (this.cool <= 0) { this.strike(); this.cool = rnd(0.5, 1.7); }
+      ctx.fillStyle = '#05060f'; ctx.fillRect(0, 0, W, H);
+      ctx.lineCap = 'round';
+      for (const b of this.live) {
+        b.life += dt;
+        const a = Math.max(0, 1 - b.life / 1.5);
+        if (a <= 0) continue;
+        for (const pass of [[3.4, 0.10, '#7c5cff'], [1.7, 0.30, '#4cc9f0'], [0, 1, '#e8ecff']]) {
+          ctx.strokeStyle = pass[2]; ctx.globalAlpha = a * pass[1];
+          ctx.beginPath();
+          for (const s of b.segs) { ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); }
+          ctx.lineWidth = 2.2 + pass[0]; ctx.stroke();
+        }
+      }
+      ctx.globalAlpha = 1;
+      this.live = this.live.filter(b => b.life < 1.5);
+      return this.live.length;
+    }
+  };
+
+  /* ======================================================== 3. slime mold */
+  // Agents with three sensors and one rule: turn toward the strongest trail,
+  // step, deposit. Nothing coordinates them; the network is what happens anyway.
+  const slime = {
+    name: 'Slime mold',
+    desc: 'Thousands of agents, three sensors each, one rule: turn toward the strongest trail, move, leave more of it. Nothing plans the network — it is the only stable thing the rule can settle into.',
+    label: 'agents',
+    gw: 0, gh: 0, trail: null, tmp: null, img: null, off: null, offc: null,
+    x: null, y: null, h: null, N: 0,
+    init() {
+      const sc = 2.2;
+      this.gw = Math.max(64, Math.round(W / sc)); this.gh = Math.max(48, Math.round(H / sc));
+      this.trail = new Float32Array(this.gw * this.gh);
+      this.tmp = new Float32Array(this.gw * this.gh);
+      this.off = document.createElement('canvas');
+      this.off.width = this.gw; this.off.height = this.gh;
+      this.offc = this.off.getContext('2d');
+      this.img = this.offc.createImageData(this.gw, this.gh);
+      this.N = Math.min(34000, Math.round(this.gw * this.gh * 0.22));
+      this.x = new Float32Array(this.N); this.y = new Float32Array(this.N); this.h = new Float32Array(this.N);
+      for (let i = 0; i < this.N; i++) {
+        this.x[i] = Math.random() * this.gw; this.y[i] = Math.random() * this.gh;
+        this.h[i] = Math.random() * 6.283;
+      }
+    },
+    sample(px, py) {
+      const gx = px < 0 ? 0 : px >= this.gw ? this.gw - 1 : px | 0;
+      const gy = py < 0 ? 0 : py >= this.gh ? this.gh - 1 : py | 0;
+      return this.trail[gy * this.gw + gx];
+    },
+    frame(dt) {
+      const gw = this.gw, gh = this.gh, tr = this.trail, tm = this.tmp;
+      const SA = 0.39, RA = 0.72, SD = 8.0, SP = 1.35;
+      for (let i = 0; i < this.N; i++) {
+        const hx = this.h[i], px = this.x[i], py = this.y[i];
+        const f = this.sample(px + Math.cos(hx) * SD, py + Math.sin(hx) * SD);
+        const l = this.sample(px + Math.cos(hx - SA) * SD, py + Math.sin(hx - SA) * SD);
+        const r = this.sample(px + Math.cos(hx + SA) * SD, py + Math.sin(hx + SA) * SD);
+        let nh = hx;
+        if (f >= l && f >= r) { /* straight on */ }
+        else if (l > r) nh -= RA; else if (r > l) nh += RA;
+        nh += (Math.random() - 0.5) * 0.12;
+        let nx = px + Math.cos(nh) * SP, ny = py + Math.sin(nh) * SP;
+        if (nx < 1) { nx = 1; nh = Math.PI - nh; }
+        if (nx > gw - 2) { nx = gw - 2; nh = Math.PI - nh; }
+        if (ny < 1) { ny = 1; nh = -nh; }
+        if (ny > gh - 2) { ny = gh - 2; nh = -nh; }
+        this.x[i] = nx; this.y[i] = ny; this.h[i] = nh;
+        tr[(ny | 0) * gw + (nx | 0)] += 1.0;
+      }
+      // diffuse and decay: the network only forms because the map forgets
+      for (let y = 1; y < gh - 1; y++) {
+        const o = y * gw;
+        for (let x = 1; x < gw - 1; x++) {
+          const i = o + x;
+          tm[i] = (tr[i] * 0.60 + (tr[i - 1] + tr[i + 1] + tr[i - gw] + tr[i + gw]) * 0.10) * 0.94;
+        }
+      }
+      this.trail = tm; this.tmp = tr;
+
+      const d = this.img.data, t2 = this.trail;
+      for (let i = 0, p = 0; i < t2.length; i++, p += 4) {
+        let v = t2[i] * 0.34; if (v > 1) v = 1;
+        const w = v * v * (3 - 2 * v);
+        d[p] = 12 + w * 243; d[p + 1] = 14 + w * 195; d[p + 2] = 34 + w * 68; d[p + 3] = 255;
+      }
+      this.offc.putImageData(this.img, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(this.off, 0, 0, W, H);
+      return this.N;
+    }
+  };
+
+  /* ========================================================= 4. tesseract */
+  const tess = {
+    name: 'Tesseract',
+    desc: 'A cube with four dimensions, turning in a plane you cannot point at. The inner cube swells, becomes the outer one, and the whole thing turns itself inside out — nothing is actually growing.',
+    label: 'edges',
+    V: [], E: [], t: 0,
+    init() {
+      this.V = []; this.E = [];
+      for (let i = 0; i < 16; i++) this.V.push([0, 1, 2, 3].map(k => (i >> k & 1) * 2 - 1));
+      for (let i = 0; i < 16; i++) for (let j = i + 1; j < 16; j++) {
+        let n = 0; for (let k = 0; k < 4; k++) n += Math.abs(this.V[i][k] - this.V[j][k]);
+        if (n === 2) this.E.push([i, j]);
+      }
+      this.t = 0;
+    },
+    frame(dt) {
+      this.t += dt * 0.42;
+      const a = this.t, b = this.t * 0.62;
+      const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b);
+      const sc = Math.min(W, H) * 0.30;
+      const p = this.V.map(v => {
+        let [x, y, z, w] = v;
+        [x, w] = [x * ca - w * sa, x * sa + w * ca];   // xw plane
+        [y, z] = [y * cb - z * sb, y * sb + z * cb];   // yz plane
+        const k = 1 / (2.7 - w);
+        let X = x * k * 2.4, Y = y * k * 2.4, Z = z * k * 2.4;
+        const k2 = 1 / (3.4 - Z);
+        return { x: W / 2 + X * k2 * sc, y: H / 2 + Y * k2 * sc, d: (w + 1) / 2 };
+      });
+      ctx.fillStyle = '#05060f'; ctx.fillRect(0, 0, W, H);
+      ctx.lineCap = 'round';
+      for (const [i, j] of this.E) {
+        const t = (p[i].d + p[j].d) / 2;
+        ctx.strokeStyle = lerpC(VIOLET, CYAN, t);
+        ctx.globalAlpha = 0.35 + 0.65 * t;
+        ctx.lineWidth = 0.8 + 1.8 * t;
+        ctx.beginPath(); ctx.moveTo(p[i].x, p[i].y); ctx.lineTo(p[j].x, p[j].y); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      for (const q of p) {
+        ctx.fillStyle = lerpC(CYAN, GOLD, q.d);
+        ctx.beginPath(); ctx.arc(q.x, q.y, 1.8 + 3.4 * q.d, 0, 6.283); ctx.fill();
+      }
+      return this.E.length;
+    }
+  };
+
+  /* ========================================================== 5. horizon */
+  const synth = {
+    name: 'Horizon',
+    desc: 'No simulation, no cleverness. A grid running to a vanishing point, a sun cut into bands, and a road that never arrives.',
+    label: 'z',
+    z: 0,
+    init() { this.z = 0; },
+    frame(dt) {
+      this.z = (this.z + dt * 0.85) % 1;
+      const hz = H * 0.52;
+      const g = ctx.createLinearGradient(0, 0, 0, hz);
+      g.addColorStop(0, '#0b0524'); g.addColorStop(1, '#5a1050');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, hz);
+      ctx.fillStyle = '#05060f'; ctx.fillRect(0, hz, W, H - hz);
+
+      const sr = Math.min(W, H) * 0.20, sy = hz - sr * 0.10;
+      for (let yy = sy - sr; yy <= sy + 2; yy++) {
+        const half = Math.sqrt(Math.max(0, sr * sr - (yy - sy) * (yy - sy)));
+        if (yy > sy - sr * 0.45 && ((sy - yy) / (sr * 0.075) | 0) % 2 === 0) continue;
+        ctx.strokeStyle = lerpC(GOLD, [255, 120, 190], (sy - yy) / (2 * sr));
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(W / 2 - half, yy + 0.5); ctx.lineTo(W / 2 + half, yy + 0.5); ctx.stroke();
+      }
+      ctx.strokeStyle = '#4cc9f0'; ctx.globalAlpha = 0.9; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, hz); ctx.lineTo(W, hz); ctx.stroke();
+
+      ctx.globalAlpha = 0.55; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = -20; i <= 20; i++) {
+        ctx.moveTo(W / 2 + i * (W * 0.022), hz);
+        ctx.lineTo(W / 2 + i * (W * 0.42), H);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      for (let k = 0; k < 26; k++) {
+        const f = ((k + this.z) / 26);
+        const y = hz + (H - hz) * f * f * f;
+        if (y > H) continue;
+        ctx.moveTo(0, y); ctx.lineTo(W, y);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      return this.z.toFixed(2);
+    }
+  };
+
+  /* ------------------------------------------------------------- driver */
+  const SCENES = { curve, bolt, slime, tess, synth };
+  let cur = null, curKey = '';
+  function pick(key) {
+    curKey = key; cur = SCENES[key];
+    if (W && H) { cur.init(); initW = W; initH = H; ready = true; }
+    else ready = false;
+    $('tName').textContent = cur.name;
+    $('tDesc').textContent = cur.desc;
+    $('hLabel').firstChild.nodeValue = cur.label + ' ';
+    document.querySelectorAll('[data-s]').forEach(b =>
+      b.setAttribute('aria-pressed', String(b.dataset.s === key)));
+    if (location.hash.slice(1) !== key) history.replaceState(null, '', '#' + key);
+  }
+  document.querySelectorAll('[data-s]').forEach(b =>
+    b.addEventListener('click', () => pick(b.dataset.s)));
+  addEventListener('keydown', e => {
+    if (e.target !== document.body) return;
+    const keys = Object.keys(SCENES);
+    const i = keys.indexOf(curKey);
+    if (e.key === 'ArrowRight') pick(keys[(i + 1) % keys.length]);
+    else if (e.key === 'ArrowLeft') pick(keys[(i + keys.length - 1) % keys.length]);
+  });
+
+  let last = performance.now(), fps = 60, frame = 0, ready = false;
+  // Scenes rebuild geometry from the viewport, so they re-init on resize --
+  // but only for a real one. Hosts that nudge the height by a pixel each frame
+  // would otherwise restart the build forever and nothing would ever finish.
+  let initW = 0, initH = 0;
+  function bigChange() {
+    return Math.abs(W - initW) > initW * 0.08 || Math.abs(H - initH) > initH * 0.08;
+  }
+  function tick(now) {
+    requestAnimationFrame(tick);
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    ensureSize();
+    if (!W || !H) return;
+    if (!ready || bigChange()) { cur.init(); ready = true; initW = W; initH = H; }
+    fps += (1 / Math.max(dt, 1e-4) - fps) * 0.08;
+    const v = cur.frame(dt, now / 1000);
+    if ((frame++ & 15) === 0) { $('hVal').textContent = v; $('hFps').textContent = fps.toFixed(0); }
+  }
+
+  pick(SCENES[location.hash.slice(1)] ? location.hash.slice(1) : 'curve');
+  ensureSize();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

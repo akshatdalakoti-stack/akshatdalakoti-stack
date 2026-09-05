@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Memento — a live ASCII skull</title>
-<meta name="description" content="A skull raymarched from signed distance fields into a character grid, sixty times a second. Every frame is real text — select it, copy it, paste it anywhere.">
+<title>Transmutation — a circle that draws itself</title>
+<meta name="description" content="An alchemical array that constructs itself stroke by stroke, turns, and ignites. Click anywhere to draw another.">
 <meta name="color-scheme" content="dark">
 <style>
   :root {
@@ -12,159 +12,88 @@
     --violet: #7c5cff;
     --cyan: #4cc9f0;
     --gold: #ffd166;
-    --pink: #ff8fd1;
     --ink: #e8ecff;
     --muted: #8b93b8;
     --panel: rgba(14, 16, 34, 0.72);
     --line: rgba(124, 92, 255, 0.22);
-    --fs: 13px;
-    --dim: #3f4a9e;
-    --lit: #cfd8ff;
-    --emb: #ff8a3c;
-    --glow: rgba(124, 92, 255, 0.55);
   }
-  /* the four palettes only ever move these three colours plus the glow */
-  body[data-pal="bone"]  { --dim:#5a5a78; --lit:#f3ece0; --emb:#ff8a3c; --glow:rgba(255,209,102,.4) }
-  body[data-pal="synth"] { --dim:#3f4a9e; --lit:#dfeeff; --emb:#ff5ea8; --glow:rgba(124,92,255,.55) }
-  body[data-pal="phos"]  { --dim:#1d6b30; --lit:#8bffa8; --emb:#eaff6b; --glow:rgba(60,255,120,.35) }
-  body[data-pal="ash"]   { --dim:#45454d; --lit:#e6e6e8; --emb:#e6e6e8; --glow:rgba(255,255,255,.18) }
-
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    background: var(--bg);
-    color: var(--ink);
+    background: var(--bg); color: var(--ink);
     font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
-    overflow: hidden;
-    -webkit-font-smoothing: antialiased;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
   }
+  canvas { display: block; position: fixed; inset: 0; touch-action: none; cursor: crosshair; }
 
-  /* ------------------------------------------------------- character grid */
-  #stage { position: fixed; inset: 0; z-index: 0; }
-  pre.layer {
-    position: absolute; inset: 0; margin: 0;
-    font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
-    font-size: var(--fs);
-    line-height: 1;
-    letter-spacing: 0;
-    white-space: pre;
-    overflow: hidden;
-    -webkit-font-smoothing: none;
-    font-smooth: never;
-  }
-  /* the dim layer is the only one that takes pointer events, so a drag to
-     rotate never starts a text selection -- but ctrl+A still copies the skull */
-  #dim { color: var(--dim); z-index: 1; }
-  #lit { color: var(--lit); z-index: 2; pointer-events: none;
-         text-shadow: 0 0 6px var(--glow), 0 0 18px var(--glow); }
-  #emb { color: var(--emb); z-index: 3; pointer-events: none;
-         text-shadow: 0 0 7px var(--emb), 0 0 22px var(--emb); }
-  body.noselect #dim { user-select: none; -webkit-user-select: none; }
-  #stage.grab { cursor: grab; }
-  #stage.grabbing { cursor: grabbing; }
-
-  /* --------------------------------------------------------------- crt */
-  #crt {
-    position: fixed; inset: 0; z-index: 4; pointer-events: none;
-    background:
-      repeating-linear-gradient(to bottom,
-        rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
-        rgba(0,0,0,0.22) 3px, rgba(0,0,0,0.22) 4px),
-      radial-gradient(ellipse at center,
-        rgba(0,0,0,0) 42%, rgba(5,6,15,0.55) 88%, rgba(5,6,15,0.92) 100%);
-    mix-blend-mode: multiply;
-  }
-  body.flat #crt { display: none; }
-
-  /* ------------------------------------------------------------- panels */
   .panel {
-    position: fixed; z-index: 6;
-    background: var(--panel);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    position: fixed; z-index: 3;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.55);
   }
   #title { top: 18px; left: 18px; padding: 14px 18px; max-width: 340px; }
   #title h1 {
-    margin: 0; font-size: 17px; letter-spacing: 0.34em; text-transform: uppercase;
-    background: linear-gradient(92deg, var(--violet), var(--cyan) 55%, var(--gold));
+    margin: 0; font-size: 17px; letter-spacing: 0.30em; text-transform: uppercase;
+    background: linear-gradient(92deg, var(--gold), var(--cyan) 70%);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   #title p { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
   #title kbd {
     font: 11px ui-monospace, Consolas, monospace;
-    background: rgba(124, 92, 255, 0.16);
-    border: 1px solid var(--line); border-radius: 5px;
-    padding: 1px 5px; color: var(--ink);
+    background: rgba(255,209,102,.14); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px; color: var(--ink);
   }
-
   #hud {
     top: 18px; right: 18px; padding: 12px 14px;
-    font: 11.5px/1.7 ui-monospace, Consolas, monospace;
-    color: var(--muted); min-width: 176px;
+    font: 11.5px/1.7 ui-monospace, Consolas, monospace; color: var(--muted); min-width: 168px;
   }
   #hud b { color: var(--ink); font-weight: 600; float: right; margin-left: 14px; }
 
   #controls {
     bottom: 18px; left: 50%; transform: translateX(-50%);
-    padding: 12px 16px;
-    display: flex; align-items: center; gap: 16px;
-    flex-wrap: wrap; justify-content: center;
-    max-width: min(980px, calc(100vw - 36px));
+    padding: 12px 16px; display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap; justify-content: center; max-width: min(980px, calc(100vw - 36px));
   }
-  .ctl { display: flex; flex-direction: column; gap: 4px; min-width: 100px; }
+  .ctl { display: flex; flex-direction: column; gap: 4px; min-width: 104px; }
   .ctl label {
-    font: 10px/1 ui-monospace, Consolas, monospace;
-    letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+    font: 10px/1 ui-monospace, Consolas, monospace; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
     display: flex; justify-content: space-between; gap: 10px;
   }
-  .ctl label span { color: var(--cyan); }
+  .ctl label span { color: var(--gold); }
   input[type=range] {
-    -webkit-appearance: none; appearance: none;
-    width: 100%; height: 3px; border-radius: 2px;
-    background: rgba(124,92,255,.3); outline: none;
+    -webkit-appearance: none; appearance: none; width: 100%; height: 3px;
+    border-radius: 2px; background: rgba(255,209,102,.3); outline: none;
   }
   input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
-    background: var(--cyan); cursor: pointer; box-shadow: 0 0 10px var(--cyan);
+    background: var(--gold); cursor: pointer; box-shadow: 0 0 10px var(--gold);
   }
   input[type=range]::-moz-range-thumb {
     width: 13px; height: 13px; border: 0; border-radius: 50%;
-    background: var(--cyan); cursor: pointer; box-shadow: 0 0 10px var(--cyan);
+    background: var(--gold); cursor: pointer; box-shadow: 0 0 10px var(--gold);
   }
   .sep { width: 1px; align-self: stretch; background: var(--line); }
   .btns { display: flex; gap: 7px; flex-wrap: wrap; }
   button {
     font: 11px ui-monospace, Consolas, monospace; letter-spacing: 0.06em;
-    color: var(--ink); background: rgba(124, 92, 255, 0.14);
-    border: 1px solid var(--line); border-radius: 8px;
-    padding: 7px 11px; cursor: pointer;
-    transition: background .15s, border-color .15s, transform .1s;
+    color: var(--ink); background: rgba(255,209,102,.12);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 11px;
+    cursor: pointer; transition: background .15s, border-color .15s, transform .1s;
     white-space: nowrap;
   }
-  button:hover { background: rgba(76, 201, 240, 0.22); border-color: var(--cyan); }
+  button:hover { background: rgba(76,201,240,.22); border-color: var(--cyan); }
   button:active { transform: translateY(1px); }
   button[aria-pressed="true"] { background: rgba(76,201,240,.28); border-color: var(--cyan); }
+  a.more { color: var(--cyan); text-decoration: none; border-bottom: 1px dotted var(--cyan); }
 
   #hint {
-    position: fixed; bottom: 104px; left: 50%; transform: translateX(-50%);
-    z-index: 6; color: var(--muted); font-size: 12px; pointer-events: none;
-    opacity: 0; transition: opacity .4s; text-align: center;
-    max-width: min(680px, calc(100vw - 40px));
-    text-shadow: 0 2px 12px #05060f, 0 0 4px #05060f;
+    position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 3;
+    color: var(--muted); font-size: 12px; pointer-events: none; opacity: 0;
+    transition: opacity .4s; text-align: center; text-shadow: 0 2px 12px #05060f;
   }
   #hint.show { opacity: 1; }
-  #hint em { color: var(--gold); font-style: normal; }
-
-  #dead { position: fixed; inset: 0; z-index: 9; display: none;
-          place-content: center; justify-items: center; align-content: center;
-          padding: 28px; text-align: center; }
-  #dead.show { display: grid; }
-  #dead h2 { margin: 0 0 8px; font-size: 18px; color: var(--gold); }
-  #dead p { margin: 0; color: var(--muted); max-width: 440px; }
-  #dead a { color: var(--cyan); }
 
   @media (max-width: 900px) {
     #title { max-width: none; right: 18px; }
@@ -172,583 +101,323 @@
     #hud { display: none; }
     .sep { display: none; }
     #controls { gap: 11px; padding: 10px 12px; }
-    #hint { bottom: 132px; }
   }
 </style>
 </head>
-<body data-pal="synth">
+<body>
 
-<div id="stage" class="grab">
-  <pre class="layer" id="dim" aria-label="A rotating skull drawn in ASCII characters"></pre>
-  <pre class="layer" id="lit" aria-hidden="true"></pre>
-  <pre class="layer" id="emb" aria-hidden="true"></pre>
-</div>
-<div id="crt"></div>
-<canvas id="gl" width="8" height="8" style="display:none"></canvas>
+<canvas id="c" aria-label="An alchemical transmutation circle drawing itself and igniting"></canvas>
 
 <div class="panel" id="title">
-  <h1>Memento</h1>
-  <p>A skull raymarched through signed distance fields, resolved onto a grid of
-     characters sixty times a second. Every frame is real text.
-     <kbd>drag</kbd> turn it &middot; <kbd>scroll</kbd> zoom &middot;
-     <kbd>space</kbd> spin &middot; <kbd>C</kbd> copy the frame</p>
+  <h1>Transmutation</h1>
+  <p>A circle built the way it would be drawn &mdash; centre, ring, inscribed
+     hexagram, runes &mdash; then set alight.
+     <kbd>click</kbd> draw another &middot; <kbd>space</kbd> ignite &middot;
+     <kbd>R</kbd> clear &middot; <a class="more" href="lab.html">the rest &rarr;</a></p>
 </div>
 
 <div class="panel" id="hud">
-  <div>grid <b id="hGrid">—</b></div>
-  <div>glyphs <b id="hCells">0</b></div>
-  <div>fps <b id="hFps">0</b></div>
-  <div>rays/frame <b id="hRays">0</b></div>
+  <div>arrays <b id="hN">0</b></div>
+  <div>strokes <b id="hS">0</b></div>
+  <div>fps <b id="hF">0</b></div>
 </div>
 
 <div id="hint"></div>
 
-<div id="dead">
-  <h2>This one needs WebGL</h2>
-  <p>The skull is raymarched on the GPU before it is turned into characters,
-     so the page needs WebGL with hardware acceleration switched on.
-     <br><br>Source: <a href="https://github.com/akshatdalakoti-stack/akshatdalakoti-stack">github.com/akshatdalakoti-stack</a></p>
-</div>
-
 <div class="panel" id="controls">
   <div class="ctl">
-    <label>type size <span id="vFs">13</span></label>
-    <input type="range" id="sFs" min="6" max="26" step="1" value="13">
+    <label>divisions <span id="vD">60</span></label>
+    <input type="range" id="sD" min="12" max="120" step="1" value="60">
   </div>
   <div class="ctl">
-    <label>contrast <span id="vGa">1.00</span></label>
-    <input type="range" id="sGa" min="0.4" max="2.2" step="0.02" value="1">
+    <label>rotation <span id="vR">1.00</span></label>
+    <input type="range" id="sR" min="0" max="4" step="0.05" value="1">
   </div>
   <div class="ctl">
-    <label>spin <span id="vSp">0.25</span></label>
-    <input type="range" id="sSp" min="0" max="1.2" step="0.01" value="0.25">
+    <label>build <span id="vB">1.00</span></label>
+    <input type="range" id="sB" min="0.25" max="3" step="0.05" value="1">
   </div>
   <div class="sep"></div>
   <div class="btns">
-    <button id="bRamp">ramp: soft</button>
-    <button id="bPal">palette: synth</button>
-    <button id="bEmber" aria-pressed="false">embers</button>
-    <button id="bCrt" aria-pressed="true">crt</button>
+    <button id="bPal">palette: gold</button>
+    <button id="bGlow" aria-pressed="true">glow</button>
+    <button id="bAuto" aria-pressed="true">auto&#8209;ignite</button>
   </div>
   <div class="sep"></div>
   <div class="btns">
-    <button data-view="face">face</button>
-    <button data-view="three">¾</button>
-    <button data-view="side">profile</button>
-    <button id="bSpin" aria-pressed="true">spin</button>
-    <button id="bCopy">copy</button>
+    <button id="bFire">transmute</button>
+    <button id="bClear">clear</button>
   </div>
 </div>
 
 <script>
-/*
-  Memento -- a skull, live, in characters.
-
-  There is no model file here and no texture. The skull is a signed distance
-  function: a braincase and a facial mass blended together, a brow ridge and
-  two zygomatic arches added on, the orbits and the nasal aperture carved back
-  out, a dental arch built by repeating one tooth around a polar angle, and a
-  mandible hinged at the condyles so the jaw can swing. A ray is fired per
-  character cell and walked until it lands on that surface.
-
-  The trick that makes this cheap: the render target is the character grid
-  itself, so a full screen is only ten or twenty thousand pixels. That is few
-  enough that the shader can afford a hundred march steps plus five-tap ambient
-  occlusion per ray and still finish in well under a millisecond -- an
-  unreasonable amount of lighting for an image that ends up as punctuation.
-
-  The luminance that comes back is quantised against a ramp of glyphs ordered
-  by ink coverage, and printed into three stacked <pre> layers: dim for the
-  falloff, bright for the highlights, warm for whatever is burning in the eye
-  sockets. They are real text nodes, so the skull can be selected and copied
-  straight out of the page.
-*/
 (() => {
   'use strict';
-
   const $ = id => document.getElementById(id);
-  const cvs = $('gl');
-  const gl = cvs.getContext('webgl2', { alpha: false, antialias: false, depth: false });
-  if (!gl) {
-    $('dead').classList.add('show');
-    $('controls').style.display = 'none';
-    $('hud').style.display = 'none';
-    $('stage').style.display = 'none';
-    return;
+  const cv = $('c'), ctx = cv.getContext('2d');
+
+  const PALETTES = {
+    gold:    { ring: '#ffd166', inner: '#4cc9f0', spark: '#ffffff', halo: '255,209,102' },
+    verdant: { ring: '#8bffa8', inner: '#eaff6b', spark: '#ffffff', halo: '120,255,160' },
+    crimson: { ring: '#ff5e6c', inner: '#ffb36b', spark: '#fff0f0', halo: '255,94,108' },
+    ice:     { ring: '#9ad8ff', inner: '#c9b4ff', spark: '#ffffff', halo: '154,216,255' }
+  };
+  const NAMES = Object.keys(PALETTES);
+
+  const S = { div: 60, rot: 1, build: 1, pal: 0, glow: true, auto: true };
+  let W = 0, H = 0, DPR = 1;
+
+  // Checked once per frame rather than driven by a resize event or a
+  // ResizeObserver. An observer on the document feeds back -- resizing the
+  // canvas changes layout, which refires the observer, which re-seeds -- and a
+  // resize event never arrives at all if the first layout happened before the
+  // viewport had a size. Polling two integers is cheaper than either.
+  function ensureSize() {
+    if (!innerWidth || !innerHeight) return false;
+    if (innerWidth === W && innerHeight === H) return false;
+    DPR = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    cv.style.width = W + 'px'; cv.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    return true;
   }
 
-  const VS = `#version 300 es
-void main() {
-  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
-  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
-}`;
-
-  const FS = `#version 300 es
-precision highp float;
-uniform vec2  uRes;
-uniform float uAspect;
-uniform float uYaw;
-uniform float uPitch;
-uniform float uDist;
-uniform float uJaw;
-uniform float uGamma;
-uniform float uTime;
-out vec4 fragColor;
-
-/* ------------------------------------------------------------ primitives */
-float sdEllipsoid(vec3 p, vec3 r) {
-  float k0 = length(p / r);
-  float k1 = length(p / (r * r));
-  return k0 * (k0 - 1.0) / max(k1, 1e-6);
-}
-float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
-  vec3 pa = p - a, ba = b - a;
-  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-  return length(pa - ba * h) - r;
-}
-float sdBox(vec3 p, vec3 b) {
-  vec3 q = abs(p) - b;
-  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
-}
-float smin(float a, float b, float k) {
-  float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
-  return mix(b, a, h) - k * h * (1.0 - h);
-}
-float smax(float a, float b, float k) {
-  float h = clamp(0.5 - 0.5 * (b - a) / k, 0.0, 1.0);
-  return mix(b, a, h) + k * h * (1.0 - h);
-}
-float ssub(float a, float b, float k) { return smax(a, -b, k); }
-vec3 rotX(vec3 p, float a) {
-  float s = sin(a), c = cos(a);
-  return vec3(p.x, c * p.y - s * p.z, s * p.y + c * p.z);
-}
-
-/* --------------------------------------------------------- dental arch */
-// One tooth, repeated around the polar angle and clipped to the front arc.
-float arch(vec3 p, float yc, float zc, float rad, float halfH, float count, float span) {
-  vec3 q = p - vec3(0.0, yc, zc);
-  float a = atan(q.x, q.z);
-  float r = length(q.xz);
-  float seg = 6.2831853 / count;
-  float a2 = mod(a + seg * 0.5, seg) - seg * 0.5;
-  float d = sdBox(vec3(a2 * r, q.y, r - rad), vec3(0.028, halfH, 0.030)) - 0.013;
-  return max(d, (abs(a) - span) * 0.55);
-}
-
-/* ---------------------------------------------------------------- skull */
-// Proportions come from a real skull: the orbit is about a third of the face
-// width, which leaves only a thin lateral rim -- get that wrong and the thing
-// reads as a helmet. Every number below was tuned against an offline render.
-float map(vec3 p) {
-  vec3 m = vec3(abs(p.x), p.y, p.z);
-
-  // braincase, long front-to-back, with the underside of the occiput carved
-  // away so it stops reading as a ball
-  float d = sdEllipsoid(p - vec3(0.0, 0.24, -0.10), vec3(0.575, 0.565, 0.700));
-  d = ssub(d, sdEllipsoid(p - vec3(0.0, -1.02, -0.40), vec3(0.95, 0.66, 0.72)), 0.20);
-
-  // facial mass hung off the front
-  d = smin(d, sdEllipsoid(p - vec3(0.0, -0.25, 0.31), vec3(0.405, 0.480, 0.385)), 0.20);
-  // brow ridge
-  d = smin(d, sdCapsule(m, vec3(0.055, 0.215, 0.495), vec3(0.335, 0.150, 0.435), 0.115), 0.13);
-  // zygomatic arch, orbit rim back to the ear
-  d = smin(d, sdCapsule(m, vec3(0.40, -0.03, 0.365), vec3(0.560, 0.04, -0.22), 0.058), 0.10);
-  // temporal hollow
-  d = ssub(d, sdEllipsoid(m - vec3(0.860, 0.30, 0.02), vec3(0.340, 0.420, 0.500)), 0.16);
-  // orbits
-  d = ssub(d, sdEllipsoid(m - vec3(0.275, -0.01, 0.37), vec3(0.215, 0.235, 0.46)), 0.040);
-  // nasal aperture: sits below the orbits. Any higher and it splits the
-  // bridge into two columns, which stops the mid-face reading as a face.
-  float nose = sdEllipsoid(p - vec3(0.0, -0.44, 0.545), vec3(0.115, 0.100, 0.170));
-  nose = smin(nose, sdEllipsoid(p - vec3(0.0, -0.32, 0.545), vec3(0.036, 0.120, 0.160)), 0.065);
-  d = ssub(d, nose, 0.032);
-  // upper dental arch
-  d = smin(d, arch(p, -0.660, 0.19, 0.290, 0.050, 20.0, 1.32), 0.03);
-
-  // mandible, hinged at the condyles: a chain of capsules following the real
-  // outline (chin, body, angle) plus a flat plate for the ascending ramus
-  vec3 hinge = vec3(0.0, -0.08, -0.26);
-  vec3 j = rotX(p - hinge, uJaw) + hinge;
-  vec3 jm = vec3(abs(j.x), j.y, j.z);
-  float jaw = sdCapsule(j, vec3(-0.11, -0.895, 0.435), vec3(0.11, -0.895, 0.435), 0.078);
-  jaw = min(jaw, sdCapsule(jm, vec3(0.10, -0.895, 0.435), vec3(0.275, -0.860, 0.315), 0.074));
-  jaw = min(jaw, sdCapsule(jm, vec3(0.275, -0.860, 0.315), vec3(0.415, -0.800, 0.020), 0.070));
-  jaw = min(jaw, sdCapsule(jm, vec3(0.415, -0.800, 0.020), vec3(0.455, -0.735, -0.190), 0.068));
-  jaw = smin(jaw, sdBox(jm - vec3(0.455, -0.450, -0.145), vec3(0.024, 0.290, 0.070)) - 0.026, 0.10);
-  jaw = smin(jaw, arch(j, -0.800, 0.19, 0.275, 0.048, 20.0, 1.28), 0.03);
-
-  return min(d, jaw);
-}
-
-vec3 normal(vec3 p) {
-  vec2 k = vec2(1.0, -1.0) * 0.0016;
-  return normalize(k.xyy * map(p + k.xyy) + k.yyx * map(p + k.yyx) +
-                   k.yxy * map(p + k.yxy) + k.xxx * map(p + k.xxx));
-}
-
-float ao(vec3 p, vec3 n) {
-  float s = 0.0, w = 1.0;
-  for (int i = 1; i <= 5; i++) {
-    float h = 0.024 * float(i) * float(i);
-    s += w * (h - map(p + n * h));
-    w *= 0.72;
-  }
-  return clamp(1.0 - 3.0 * s, 0.0, 1.0);
-}
-
-void main() {
-  vec2 uv = (gl_FragCoord.xy / uRes) * 2.0 - 1.0;
-  uv.x *= uAspect;
-
-  vec3 target = vec3(0.0, -0.14, 0.0);
-  float cp = cos(uPitch), sp = sin(uPitch);
-  vec3 ro = target + vec3(sin(uYaw) * cp, sp, cos(uYaw) * cp) * uDist;
-  vec3 fw = normalize(target - ro);
-  vec3 rt = normalize(cross(fw, vec3(0.0, 1.0, 0.0)));
-  vec3 up = cross(rt, fw);
-  vec3 rd = normalize(uv.x * rt + uv.y * up + 1.75 * fw);
-
-  float t = 0.0;
-  bool hit = false;
-  for (int i = 0; i < 110; i++) {
-    vec3 p = ro + rd * t;
-    float h = map(p);
-    if (h < 0.0009) { hit = true; break; }
-    t += h * 0.92;
-    if (t > 9.0) break;
-  }
-
-  float lum = 0.0, ember = 0.0;
-  if (hit) {
-    vec3 p = ro + rd * t;
-    vec3 n = normal(p);
-    // A hard side light destroys a skull: the features that make it read are
-    // symmetric, so the key sits just off the view axis and the cavities are
-    // carried by occlusion instead of by cast shadow.
-    float occ = pow(ao(p, n), 1.15);
-    float front = clamp(dot(n, -rd), 0.0, 1.0);
-    vec3 key = normalize(-rd * 0.72 + vec3(-0.34 + 0.16 * sin(uTime * 0.55),
-                                            0.54 - 0.07 * cos(uTime * 0.55), 0.0));
-    float dif = clamp(dot(n, key), 0.0, 1.0);
-    float sil = pow(clamp(1.0 - front, 0.0, 1.0), 3.0);
-
-    lum = 0.09 + occ * (0.30 * pow(front, 0.9) + 0.70 * dif) + 0.20 * occ * sil;
-    lum = clamp((lum - 0.04) / 0.90, 0.0, 1.0);
-
-    // something burning back in the orbits
-    vec3 e = vec3(abs(p.x), p.y, p.z) - vec3(0.275, -0.01, 0.13);
-    ember = smoothstep(1.05, 0.25, length(e / vec3(0.205, 0.215, 0.31)));
-    lum += ember * 0.85;
-  }
-
-  // A drifting ripple worth about a third of a ramp step. The geometry alone
-  // leaves large patches of the face on the same glyph for seconds at a time;
-  // this keeps every cell turning over without disturbing the form.
-  if (hit) {
-    lum += 0.018 * (sin(gl_FragCoord.x * 0.31 + gl_FragCoord.y * 0.17 + uTime * 0.9)
-                  + sin(gl_FragCoord.x * 0.13 - gl_FragCoord.y * 0.29 + uTime * 1.7));
-  }
-  lum = pow(clamp(lum, 0.0, 1.0), 1.0 / uGamma);
-  fragColor = vec4(lum, ember, 0.0, 1.0);
-}`;
-
-  /* --------------------------------------------------------- gl plumbing */
-  function compile(type, src) {
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src);
-    gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-      console.error(gl.getShaderInfoLog(s));
-      console.error(src.split('\n').map((l, i) => (i + 1) + ': ' + l).join('\n'));
-      throw new Error('shader compile failed');
-    }
-    return s;
-  }
-  const prog = (() => {
-    const p = gl.createProgram();
-    gl.attachShader(p, compile(gl.VERTEX_SHADER, VS));
-    gl.attachShader(p, compile(gl.FRAGMENT_SHADER, FS));
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
-      console.error(gl.getProgramInfoLog(p));
-      throw new Error('program link failed');
-    }
-    const u = {};
-    const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
-    for (let i = 0; i < n; i++) {
-      const info = gl.getActiveUniform(p, i);
-      u[info.name] = gl.getUniformLocation(p, info.name);
-    }
-    return { p, u };
-  })();
-  gl.bindVertexArray(gl.createVertexArray());
-  gl.useProgram(prog.p);
-
-  let tex = null, fbo = null, pix = null;
-  function allocate(w, h) {
-    if (tex) { gl.deleteTexture(tex); gl.deleteFramebuffer(fbo); }
-    tex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    fbo = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-    pix = new Uint8Array(w * h * 4);
-  }
-
-  /* ------------------------------------------------------------- glyphs */
-  // Ramps run from no ink to full ink, so index = brightness.
-  const RAMPS = [
-    { name: 'soft',   chars: ' .:-=+*#%@' },
-    { name: 'fine',   chars: " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$" },
-    { name: 'blocks', chars: ' ░▒▓█' },
-    { name: 'bits',   chars: ' ..::0011' }
+  /* ------------------------------------------------------------- one array */
+  // Progress is kept as a single age in seconds and every stroke reads its own
+  // window out of it, so the build order is declared once, here, rather than
+  // being threaded through a state machine.
+  const STAGES = [
+    ['outer',  0.00, 1.05],
+    ['outer2', 0.30, 1.35],
+    ['runes',  0.70, 2.05],
+    ['inner',  0.95, 2.05],
+    ['hex',    1.50, 3.00],
+    ['core',   2.45, 3.25],
+    ['spokes', 2.70, 3.60],
+    ['nodes',  3.10, 3.85]
   ];
-  const PALETTES = ['synth', 'bone', 'phos', 'ash'];
+  const BUILD_END = 3.85;
 
-  const S = {
-    fs: 13, gamma: 1, spin: 0.25, ramp: 0, pal: 0,
-    ember: false, crt: true, spinning: true,
-    yaw: 0.62, pitch: 0.16, dist: 2.90, jaw: 0.10
-  };
-
-  /* --------------------------------------------------------- the grid */
-  let COLS = 0, ROWS = 0, charW = 8, lineH = 13, VW = 0, VH = 0;
-  let codes = null, rowsDim = [], rowsLit = [], rowsEmb = [];
-  const elDim = $('dim'), elLit = $('lit'), elEmb = $('emb');
-
-  // Must be a <pre class="layer"> and not a span: the font stack is bound to
-  // pre.layer, and measuring the wrong font puts the whole image off centre.
-  // inset:0 from .layer would stretch the probe, so every edge is reset here.
-  function measureCell(px) {
-    const probe = document.createElement('pre');
-    probe.className = 'layer';
-    probe.style.cssText =
-      'position:absolute;visibility:hidden;left:-9999px;top:0;right:auto;bottom:auto;' +
-      'width:auto;height:auto;margin:0;padding:0;overflow:visible;white-space:pre;' +
-      'font-size:' + px + 'px;line-height:1;';
-    probe.textContent = 'M'.repeat(200);
-    document.body.appendChild(probe);
-    const w = probe.getBoundingClientRect().width / 200;
-    document.body.removeChild(probe);
-    return { w: w > 0.5 ? w : px * 0.6, h: px };
+  function seg(age, i) {
+    const [, a, b] = STAGES[i];
+    return Math.max(0, Math.min(1, (age - a) / (b - a)));
   }
 
-  function layout() {
-    VW = innerWidth; VH = innerHeight;
-    document.documentElement.style.setProperty('--fs', S.fs + 'px');
-    const cell = measureCell(S.fs);
-    charW = cell.w; lineH = cell.h;
-    COLS = Math.max(24, Math.floor(VW / charW));
-    ROWS = Math.max(14, Math.floor(VH / lineH));
-    // a hard ceiling on glyphs keeps the per-frame string building bounded
-    while (COLS * ROWS > 52000) { COLS = Math.floor(COLS * 0.94); ROWS = Math.floor(ROWS * 0.94); }
-    cvs.width = COLS; cvs.height = ROWS;
-    allocate(COLS, ROWS);
-    codes = new Uint16Array(COLS);
-    rowsDim = new Array(ROWS); rowsLit = new Array(ROWS); rowsEmb = new Array(ROWS);
-    $('hGrid').textContent = COLS + '×' + ROWS;
-    $('hCells').textContent = (COLS * ROWS).toLocaleString();
-  }
-
-  /* --------------------------------------------------------------- draw */
-  const SP = 32; // space
-  function toText() {
-    const ramp = RAMPS[S.ramp].chars;
-    const top = ramp.length - 1;
-    const litCut = Math.max(2, Math.round(top * 0.52));
-    for (let y = 0; y < ROWS; y++) {
-      // readPixels hands back rows bottom-up; text runs top-down
-      let o = (ROWS - 1 - y) * COLS * 4;
-      let anyLit = false, anyEmb = false;
-      for (let x = 0; x < COLS; x++) codes[x] = pix[o + x * 4];
-      // dim layer: every glyph
-      for (let x = 0; x < COLS; x++) codes[x] = ramp.charCodeAt((codes[x] * top / 255 + 0.5) | 0);
-      rowsDim[y] = String.fromCharCode.apply(null, codes);
-      // lit layer: only the glyphs at the top of the ramp
-      for (let x = 0; x < COLS; x++) {
-        const v = (pix[o + x * 4] * top / 255 + 0.5) | 0;
-        if (v >= litCut) { codes[x] = ramp.charCodeAt(v); anyLit = true; } else codes[x] = SP;
-      }
-      rowsLit[y] = anyLit ? String.fromCharCode.apply(null, codes) : '';
-      // ember layer: whatever the orbits are throwing
-      if (S.ember) {
-        for (let x = 0; x < COLS; x++) {
-          if (pix[o + x * 4 + 1] > 96) {
-            codes[x] = ramp.charCodeAt((pix[o + x * 4] * top / 255 + 0.5) | 0);
-            anyEmb = true;
-          } else codes[x] = SP;
-        }
-        rowsEmb[y] = anyEmb ? String.fromCharCode.apply(null, codes) : '';
-      } else rowsEmb[y] = '';
+  class Array_ {
+    constructor(x, y, r) {
+      this.x = x; this.y = y; this.r = r;
+      this.age = 0; this.fire = -1; this.dead = false;
+      this.div = Math.max(8, Math.round(S.div * Math.min(1, r / 150)));
+      this.seed = Math.random() * 6.283;
     }
-    elDim.textContent = rowsDim.join('\n');
-    elLit.textContent = rowsLit.join('\n');
-    elEmb.textContent = rowsEmb.join('\n');
+    ignite() { if (this.age > BUILD_END * 0.6 && this.fire < 0) this.fire = 0; }
+    step(dt) {
+      this.age += dt * S.build;
+      if (this.fire >= 0) this.fire += dt;
+      if (this.auto !== false && S.auto && this.fire < 0 && this.age > BUILD_END + 2.2) this.ignite();
+      if (this.fire > 2.6) { this.dead = true; }
+    }
+    draw(t) {
+      const P = PALETTES[NAMES[S.pal]];
+      const { x, y, r } = this;
+      const a = this.age;
+      // the flare rides on top of everything and fades the array out with it
+      const f = this.fire < 0 ? 0 : Math.max(0, 1 - Math.abs(this.fire - 0.55) / 0.75);
+      const gone = this.fire < 0 ? 1 : Math.max(0, 1 - Math.max(0, this.fire - 1.2) / 1.4);
+      ctx.save();
+      ctx.globalAlpha = gone;
+      ctx.lineCap = 'round';
+      if (S.glow) { ctx.shadowBlur = 14 + 40 * f; ctx.shadowColor = 'rgba(' + P.halo + ',0.9)'; }
+
+      const spin = t * 0.12 * S.rot + this.seed;
+      arc(x, y, r, seg(a, 0), P.ring, 2 + 2.5 * f);
+      arc(x, y, r - 10, seg(a, 1), P.ring, 1, 0.45);
+
+      // rune band, turning
+      const pr = seg(a, 2), n = this.div;
+      ctx.strokeStyle = P.ring; ctx.globalAlpha = gone * 0.85; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        if (i / n > pr) break;
+        const ang = spin + i * 6.28318 / n;
+        const r0 = r - (i % 3 === 0 ? 11 : 6.5), r1 = r - 1.5;
+        ctx.moveTo(x + r0 * Math.cos(ang), y + r0 * Math.sin(ang));
+        ctx.lineTo(x + r1 * Math.cos(ang), y + r1 * Math.sin(ang));
+      }
+      ctx.stroke();
+      ctx.globalAlpha = gone;
+
+      const ri = r * 0.60, rc = r * 0.22;
+      arc(x, y, ri, seg(a, 3), P.ring, 1.4, 0.75);
+
+      // hexagram, counter-turning
+      const ph = seg(a, 4), hs = -t * 0.075 * S.rot - this.seed;
+      ctx.strokeStyle = P.inner; ctx.lineWidth = 1.6; ctx.lineJoin = 'round';
+      for (let k = 0; k < 2; k++) {
+        const off = hs + k * 1.0472;
+        const pts = [];
+        for (let i = 0; i <= 3; i++) {
+          const ang = off + i * 2.0944;
+          pts.push([x + ri * Math.cos(ang), y + ri * Math.sin(ang)]);
+        }
+        partial(pts, Math.max(0, Math.min(1, ph * 2 - k)));
+      }
+
+      arc(x, y, rc, seg(a, 5), P.inner, 1.4, 0.9);
+
+      // spokes and vertex nodes
+      const ps = seg(a, 6);
+      ctx.strokeStyle = P.inner; ctx.globalAlpha = gone * 0.5; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        if (k / 6 > ps) break;
+        const ang = hs + k * 1.0472;
+        ctx.moveTo(x + rc * Math.cos(ang), y + rc * Math.sin(ang));
+        ctx.lineTo(x + ri * Math.cos(ang), y + ri * Math.sin(ang));
+      }
+      ctx.stroke();
+      const pn = seg(a, 7);
+      ctx.globalAlpha = gone * pn;
+      for (let k = 0; k < 6; k++) {
+        const ang = hs + k * 1.0472;
+        const nx = x + ri * Math.cos(ang), ny = y + ri * Math.sin(ang);
+        ctx.beginPath(); ctx.arc(nx, ny, 5, 0, 6.28318);
+        ctx.fillStyle = 'rgba(' + P.halo + ',0.25)'; ctx.fill();
+        ctx.strokeStyle = P.ring; ctx.lineWidth = 1.2; ctx.stroke();
+      }
+      ctx.globalAlpha = gone;
+
+      // the arc that races the circumference on ignition
+      if (this.fire >= 0 && this.fire < 1.1) {
+        const p = this.fire / 1.1;
+        const head = -1.5708 + p * 6.28318;
+        ctx.strokeStyle = P.spark;
+        ctx.lineWidth = 2.6 + 3 * f;
+        ctx.shadowBlur = S.glow ? 26 : 0;
+        ctx.beginPath();
+        ctx.arc(x, y, r, head - 0.9, head);
+        ctx.stroke();
+      }
+      if (f > 0.01) {
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.5);
+        g.addColorStop(0, 'rgba(' + P.halo + ',' + (0.42 * f) + ')');
+        g.addColorStop(1, 'rgba(' + P.halo + ',0)');
+        ctx.fillStyle = g; ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, 6.28318); ctx.fill();
+      }
+      ctx.restore();
+
+      function arc(cx, cy, rr, p, col, w, al) {
+        if (p <= 0) return;
+        ctx.globalAlpha = gone * (al === undefined ? 1 : al);
+        ctx.strokeStyle = col; ctx.lineWidth = w + (w > 1.5 ? 2.5 * f : 0);
+        ctx.beginPath();
+        ctx.arc(cx, cy, rr, -1.5708, -1.5708 + 6.28318 * p);
+        ctx.stroke();
+        ctx.globalAlpha = gone;
+      }
+      function partial(pts, p) {
+        if (p <= 0) return;
+        let total = 0;
+        for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+        let want = total * p;
+        ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length && want > 0; i++) {
+          const dx = pts[i][0] - pts[i - 1][0], dy = pts[i][1] - pts[i - 1][1];
+          const L = Math.hypot(dx, dy);
+          const q = Math.min(1, want / L);
+          ctx.lineTo(pts[i - 1][0] + dx * q, pts[i - 1][1] + dy * q);
+          want -= L;
+        }
+        ctx.stroke();
+      }
+    }
   }
 
-  function render(now) {
-    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-    gl.viewport(0, 0, COLS, ROWS);
-    gl.useProgram(prog.p);
-    gl.uniform2f(prog.u.uRes, COLS, ROWS);
-    gl.uniform1f(prog.u.uAspect, (COLS * charW) / (ROWS * lineH));
-    gl.uniform1f(prog.u.uYaw, S.yaw);
-    gl.uniform1f(prog.u.uPitch, S.pitch);
-    gl.uniform1f(prog.u.uDist, S.dist);
-    gl.uniform1f(prog.u.uJaw, S.jaw + 0.035 * Math.sin(now * 0.0006));
-    gl.uniform1f(prog.u.uGamma, S.gamma);
-    gl.uniform1f(prog.u.uTime, now * 0.001);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.readPixels(0, 0, COLS, ROWS, gl.RGBA, gl.UNSIGNED_BYTE, pix);
-    toText();
+  /* ---------------------------------------------------------------- scene */
+  let arrays = [], seeded = false;
+  function seed() {
+    arrays = [];
+    const r = Math.min(W, H) * 0.30;
+    const main = new Array_(W / 2, H / 2, r);
+    main.auto = true;
+    arrays.push(main);
+    for (const s of [-1, 1]) {
+      const a = new Array_(W / 2 + s * (r + 30 + r * 0.42), H / 2, r * 0.36);
+      a.age = -0.5; arrays.push(a);
+    }
   }
-
-  /* ---------------------------------------------------------- interaction */
-  const stage = $('stage');
-  let drag = null;
-  stage.addEventListener('pointerdown', e => {
-    if (e.target.closest('.panel')) return;
-    e.preventDefault();
-    stage.setPointerCapture(e.pointerId);
-    stage.classList.add('grabbing');
-    drag = { x: e.clientX, y: e.clientY };
-  });
-  addEventListener('pointermove', e => {
-    if (!drag) return;
-    S.yaw -= (e.clientX - drag.x) * 0.0075;
-    S.pitch = Math.max(-1.15, Math.min(1.15, S.pitch + (e.clientY - drag.y) * 0.0055));
-    drag.x = e.clientX; drag.y = e.clientY;
-  });
-  addEventListener('pointerup', () => { drag = null; stage.classList.remove('grabbing'); });
-  stage.addEventListener('wheel', e => {
-    e.preventDefault();
-    S.dist = Math.max(1.7, Math.min(7, S.dist * (1 + Math.sign(e.deltaY) * 0.09)));
-  }, { passive: false });
-
-  const VIEWS = {
-    face:  { yaw: 0.0,    pitch: 0.03, dist: 2.70 },
-    three: { yaw: 0.66,   pitch: 0.17, dist: 2.90 },
-    side:  { yaw: 1.5708, pitch: 0.04, dist: 2.85 }
-  };
-  document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
-    const v = VIEWS[b.dataset.view];
-    S.yaw = v.yaw; S.pitch = v.pitch; S.dist = v.dist;
-    S.spinning = false; setSpin(false);
-  }));
 
   let hintTimer = 0;
-  function hint(html) {
-    const el = $('hint');
-    el.innerHTML = html;
-    el.classList.add('show');
+  function hint(text) {
+    const el = $('hint'); el.textContent = text; el.classList.add('show');
     clearTimeout(hintTimer);
-    hintTimer = setTimeout(() => el.classList.remove('show'), 6000);
+    hintTimer = setTimeout(() => el.classList.remove('show'), 5200);
   }
 
-  function setSpin(v) { S.spinning = v; $('bSpin').setAttribute('aria-pressed', String(v)); }
-
-  $('bSpin').addEventListener('click', () => setSpin(!S.spinning));
-  $('bRamp').addEventListener('click', () => {
-    S.ramp = (S.ramp + 1) % RAMPS.length;
-    $('bRamp').textContent = 'ramp: ' + RAMPS[S.ramp].name;
-    hint(RAMPS[S.ramp].chars.length + ' levels of ink, from <em>' +
-         (RAMPS[S.ramp].chars[1] || ' ') + '</em> to <em>' +
-         RAMPS[S.ramp].chars[RAMPS[S.ramp].chars.length - 1] + '</em>');
+  cv.addEventListener('pointerdown', e => {
+    const r = 46 + Math.random() * Math.min(W, H) * 0.16;
+    arrays.push(new Array_(e.clientX, e.clientY, r));
+    if (arrays.length > 26) arrays.splice(0, arrays.length - 26);
   });
+
+  $('bFire').addEventListener('click', () => { arrays.forEach(a => a.ignite()); });
+  $('bClear').addEventListener('click', () => { seed(); });
   $('bPal').addEventListener('click', () => {
-    S.pal = (S.pal + 1) % PALETTES.length;
-    document.body.dataset.pal = PALETTES[S.pal];
-    $('bPal').textContent = 'palette: ' + PALETTES[S.pal];
+    S.pal = (S.pal + 1) % NAMES.length;
+    $('bPal').textContent = 'palette: ' + NAMES[S.pal];
   });
-  $('bEmber').addEventListener('click', () => {
-    S.ember = !S.ember;
-    $('bEmber').setAttribute('aria-pressed', String(S.ember));
+  $('bGlow').addEventListener('click', () => {
+    S.glow = !S.glow; $('bGlow').setAttribute('aria-pressed', String(S.glow));
   });
-  $('bCrt').addEventListener('click', () => {
-    S.crt = !S.crt;
-    document.body.classList.toggle('flat', !S.crt);
-    $('bCrt').setAttribute('aria-pressed', String(S.crt));
+  $('bAuto').addEventListener('click', () => {
+    S.auto = !S.auto; $('bAuto').setAttribute('aria-pressed', String(S.auto));
+    hint(S.auto ? 'arrays ignite on their own once drawn' : 'arrays stay drawn until you transmute');
   });
-  function copyFrame() {
-    const txt = elDim.textContent;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).then(
-        () => hint('this frame copied &mdash; ' + COLS + '×' + ROWS + ' characters, paste it anywhere'),
-        () => hint('clipboard refused &mdash; select the skull and copy it by hand instead'));
-    } else hint('no clipboard here &mdash; select the skull and copy it by hand');
-  }
-  $('bCopy').addEventListener('click', copyFrame);
-
-  function slider(id, out, key, fmt, after) {
-    const el = $(id);
-    el.addEventListener('input', e => {
-      S[key] = +e.target.value;
-      $(out).textContent = fmt(S[key]);
-      if (after) after();
-    });
+  function slider(id, out, key, fmt) {
+    $(id).addEventListener('input', e => { S[key] = +e.target.value; $(out).textContent = fmt(S[key]); });
     $(out).textContent = fmt(S[key]);
   }
-  slider('sFs', 'vFs', 'fs', v => v.toFixed(0), () => layout());
-  slider('sGa', 'vGa', 'gamma', v => v.toFixed(2));
-  slider('sSp', 'vSp', 'spin', v => v.toFixed(2));
+  slider('sD', 'vD', 'div', v => v.toFixed(0));
+  slider('sR', 'vR', 'rot', v => v.toFixed(2));
+  slider('sB', 'vB', 'build', v => v.toFixed(2));
 
   addEventListener('keydown', e => {
     if (e.target !== document.body) return;
-    const k = e.key.toLowerCase();
-    if (e.code === 'Space') { e.preventDefault(); setSpin(!S.spinning); }
-    else if (k === 'c' && !e.ctrlKey && !e.metaKey) copyFrame();
-    else if (k === 'r') $('bRamp').click();
-    else if (k === 'p') $('bPal').click();
+    if (e.code === 'Space') { e.preventDefault(); arrays.forEach(a => a.ignite()); }
+    else if (e.key.toLowerCase() === 'r') seed();
   });
 
-  addEventListener('hashchange', () => {
-    const w = decodeURIComponent(location.hash.slice(1));
-    if (VIEWS[w]) { Object.assign(S, VIEWS[w]); setSpin(false); }
-  });
-
-  let resizeTimer = 0;
-  function relayoutSoon() {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(layout, 150);
-  }
-  addEventListener('resize', relayoutSoon);
-  // A plain resize listener is not enough: if the first layout runs before the
-  // viewport has settled -- a cold load, a restored tab, an embed that sizes
-  // itself late -- the grid sticks at its minimum and never recovers, because
-  // no resize event ever fires. Watching the element catches those.
-  if (window.ResizeObserver) {
-    new ResizeObserver(relayoutSoon).observe(document.documentElement);
-  }
-
-  /* ----------------------------------------------------------------- loop */
-  let last = performance.now(), fps = 60, frame = 0, sway = 0.9;
+  let last = performance.now(), fps = 60, frame = 0;
   function tick(now) {
     requestAnimationFrame(tick);
-    const ms = now - last; last = now;
-    fps += (1000 / Math.max(ms, 1) - fps) * 0.08;
-    if (S.spinning && !drag) {
-      // the profile is the weakest angle, so the idle motion sways between the
-      // two three-quarter views rather than turning all the way round
-      sway += S.spin * Math.min(ms, 50) * 0.0011;
-      S.yaw = 0.80 * Math.sin(sway);
-      S.pitch = 0.10 + 0.09 * Math.sin(sway * 0.6 + 1.1);
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    ensureSize();
+    // Seed once, the first frame the viewport actually has a size. Re-seeding
+    // whenever the canvas resizes looks tidy until the host twitches its height
+    // by a pixel every frame, and the build restarts forever.
+    if (!W || !H) return;
+    if (!seeded) { seed(); seeded = true; }
+    fps += (1 / Math.max(dt, 1e-4) - fps) * 0.08;
+    const t = now / 1000;
+
+    ctx.fillStyle = '#05060f';
+    ctx.fillRect(0, 0, W, H);
+    for (const a of arrays) { a.step(dt); a.draw(t); }
+    arrays = arrays.filter(a => !a.dead);
+    if (!arrays.length) seed();
+
+    if ((frame++ & 15) === 0) {
+      $('hN').textContent = arrays.length;
+      $('hS').textContent = arrays.reduce((s, a) => s + 12 + a.div, 0);
+      $('hF').textContent = fps.toFixed(0);
     }
-    render(now);
-    if ((frame & 15) === 0) {
-      $('hFps').textContent = fps.toFixed(0);
-      $('hRays').textContent = (COLS * ROWS).toLocaleString();
-    }
-    frame++;
   }
 
-  layout();
-  const wanted = decodeURIComponent(location.hash.slice(1));
-  if (VIEWS[wanted]) { Object.assign(S, VIEWS[wanted]); S.spinning = false; setSpin(false); }
+  ensureSize();
   requestAnimationFrame(tick);
+  setTimeout(() => hint('click anywhere to draw another array'), 2600);
 })();
 </script>
 </body>

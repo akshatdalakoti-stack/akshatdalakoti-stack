@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hero.svg" width="100%" alt="A human skull drawn entirely in monospace characters, turning slowly between three-quarter views">
+<img src="assets/hero.svg" width="100%" alt="An alchemical transmutation circle drawing itself stroke by stroke, its rune band and inscribed hexagram counter-rotating, then igniting as a bright arc races around the circumference">
 
 ### **`Akshat Dalakoti`**
 
@@ -11,10 +11,12 @@
 </a>
 
 <sub>
-  no model, no texture &mdash; a signed distance field raymarched into the character grid, sixty times a second<br>
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#face">face</a> &middot;
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#three">three&#8209;quarter</a> &middot;
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/#side">profile</a>
+  the banner is not a video &mdash; it is geometry, drawing itself<br>
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#curve">space&#8209;filling curve</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#bolt">lightning</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#slime">slime mold</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#tess">tesseract</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#synth">horizon</a>
 </sub>
 
 </div>
@@ -30,7 +32,7 @@ graphics, embedded control, and the small tools that make the rest less painful.
 - 🔭 Currently working on — **[minidb](https://github.com/akshatdalakoti-stack/minidb)**, a
   database storage engine written from scratch in Go on the standard library alone:
   pager, buffer pool, B-tree indexes, a write-ahead log, and crash recovery.
-- 💬 Ask me about — storage engines, Redis internals, raymarching signed distance fields, or coaxing
+- 💬 Ask me about — storage engines, Redis internals, space-filling curves, or coaxing
   BirdNET onto an ESP32.
 - 🧩 Puzzles — [LeetCode: dalakoti_0019_akshat](https://leetcode.com/u/dalakoti_0019_akshat/)
 - 📫 Reach me at — **akshatdalakoti@gmail.com** ·

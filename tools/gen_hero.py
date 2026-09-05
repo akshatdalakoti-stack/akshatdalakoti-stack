@@ -1,267 +1,210 @@
 """
-Bakes the skull into a looping animated SVG banner of real characters.
+Bakes the transmutation circle into a looping animated SVG banner.
 
-GitHub renders README images inside <img>, where no JavaScript runs -- so the
-live version in docs/index.html cannot be embedded directly. What works there
-is CSS animation inside the SVG itself, so this pre-renders a short cycle of
-frames and flicks between them:
+GitHub runs no JavaScript in a README, so the motion has to live inside the
+SVG. The skull that used to be here was raster-shaped -- every pixel changed
+every frame -- so it had to ship as a flipbook of pre-rendered character grids,
+about 180 KB of them. This is vector: circles, a hexagram, tick marks. So the
+whole thing is a few kilobytes of geometry with SMIL animation on top, and the
+motion is genuinely continuous rather than stepped.
 
-  * geometry  : the same signed distance function the page raymarches, kept in
-                sync by hand -- braincase and facial mass blended, brow ridge
-                and zygomatic arches added, orbits and nasal aperture carved
-                back out, a dental arch repeated around a polar angle, and a
-                mandible hinged at the condyles.
-  * shading   : a near-frontal key plus five-tap ambient occlusion. A hard side
-                light would break the symmetry the skull reads by.
-  * motion    : yaw sways as a sine, so the loop closes seamlessly and never
-                reaches the straight profile, which is the least legible angle.
-  * animation : one @keyframes shared by every frame group, each offset by its
-                own animation-delay. Cheaper than a keyframes block per frame.
+The cycle, over one loop:
 
-Every row is pinned with textLength/lengthAdjust so the grid stays square
-whatever monospace font the viewer happens to resolve -- without that, a font
-whose advance width is not exactly 0.6em shears the picture apart.
+  * construct : each stroke draws itself by running stroke-dashoffset down from
+                its own length to zero. SMIL carries per-element values, which
+                CSS keyframes cannot without a rule per distinct length.
+  * turn      : the rune band and the hexagram counter-rotate the whole time,
+                on their own much longer periods, so the figure never sits still
+                even while nothing is being drawn.
+  * ignite    : a bright arc sweeps the circumference, then the array flares.
+  * reset     : everything runs back down and the loop closes seamlessly.
 
-Needs numpy. Run from the repository root:  python tools/gen_hero.py
+Geometry is computed here rather than hand-written so the hexagram actually
+inscribes the inner ring and the tick marks actually divide the circle evenly.
+
+Run from the repository root:  python tools/gen_hero.py
 """
-import numpy as np
+import math
 
-# ----------------------------------------------------------------- geometry
-JAW = 0.10
-
-
-def nrm(v):
-    return np.sqrt((v * v).sum(-1))
-
-
-def sdEllipsoid(p, c, r):
-    q = (p - c) / r
-    k0 = nrm(q)
-    k1 = nrm((p - c) / (r * r))
-    return k0 * (k0 - 1.0) / np.maximum(k1, 1e-6)
-
-
-def sdCapsule(p, a, b, r):
-    pa = p - a
-    ba = np.asarray(b, float) - np.asarray(a, float)
-    h = np.clip((pa * ba).sum(-1) / ba.dot(ba), 0.0, 1.0)[..., None]
-    return nrm(pa - ba * h) - r
-
-
-def sdBox(p, b):
-    q = np.abs(p) - b
-    return nrm(np.maximum(q, 0.0)) + np.minimum(q.max(-1), 0.0)
-
-
-def smin(a, b, k):
-    h = np.clip(0.5 + 0.5 * (b - a) / k, 0.0, 1.0)
-    return b + (a - b) * h - k * h * (1.0 - h)
-
-
-def smax(a, b, k):
-    h = np.clip(0.5 - 0.5 * (b - a) / k, 0.0, 1.0)
-    return b + (a - b) * h + k * h * (1.0 - h)
-
-
-def ssub(a, b, k):
-    return smax(a, -b, k)
-
-
-def rotX(p, a):
-    s, c = np.sin(a), np.cos(a)
-    return np.stack([p[..., 0],
-                     c * p[..., 1] - s * p[..., 2],
-                     s * p[..., 1] + c * p[..., 2]], -1)
-
-
-def arch(p, yc, zc, rad, halfH, count, span):
-    """One tooth, repeated around the polar angle and clipped to the front arc."""
-    q = p - np.array([0.0, yc, zc])
-    a = np.arctan2(q[..., 0], q[..., 2])
-    r = np.hypot(q[..., 0], q[..., 2])
-    seg = 2 * np.pi / count
-    a2 = np.mod(a + seg * 0.5, seg) - seg * 0.5
-    d = sdBox(np.stack([a2 * r, q[..., 1], r - rad], -1),
-              np.array([0.028, halfH, 0.030])) - 0.013
-    return np.maximum(d, (np.abs(a) - span) * 0.55)
-
-
-def map_(p):
-    m = np.stack([np.abs(p[..., 0]), p[..., 1], p[..., 2]], -1)
-
-    d = sdEllipsoid(p, np.array([0.0, 0.24, -0.10]), np.array([0.575, 0.565, 0.700]))
-    d = ssub(d, sdEllipsoid(p, np.array([0.0, -1.02, -0.40]),
-                            np.array([0.95, 0.66, 0.72])), 0.20)
-    d = smin(d, sdEllipsoid(p, np.array([0.0, -0.25, 0.31]),
-                            np.array([0.405, 0.480, 0.385])), 0.20)
-    d = smin(d, sdCapsule(m, [0.055, 0.215, 0.495], [0.335, 0.150, 0.435], 0.115), 0.13)
-    d = smin(d, sdCapsule(m, [0.40, -0.03, 0.365], [0.560, 0.04, -0.22], 0.058), 0.10)
-    d = ssub(d, sdEllipsoid(m, np.array([0.860, 0.30, 0.02]),
-                            np.array([0.340, 0.420, 0.500])), 0.16)
-    d = ssub(d, sdEllipsoid(m, np.array([0.275, -0.01, 0.37]),
-                            np.array([0.215, 0.235, 0.46])), 0.040)
-    nose = sdEllipsoid(p, np.array([0.0, -0.44, 0.545]), np.array([0.115, 0.100, 0.170]))
-    nose = smin(nose, sdEllipsoid(p, np.array([0.0, -0.32, 0.545]),
-                                  np.array([0.036, 0.120, 0.160])), 0.065)
-    d = ssub(d, nose, 0.032)
-    d = smin(d, arch(p, -0.660, 0.19, 0.290, 0.050, 20.0, 1.32), 0.03)
-
-    hinge = np.array([0.0, -0.08, -0.26])
-    j = rotX(p - hinge, JAW) + hinge
-    jm = np.stack([np.abs(j[..., 0]), j[..., 1], j[..., 2]], -1)
-    jaw = sdCapsule(j, [-0.11, -0.895, 0.435], [0.11, -0.895, 0.435], 0.078)
-    jaw = np.minimum(jaw, sdCapsule(jm, [0.10, -0.895, 0.435], [0.275, -0.860, 0.315], 0.074))
-    jaw = np.minimum(jaw, sdCapsule(jm, [0.275, -0.860, 0.315], [0.415, -0.800, 0.020], 0.070))
-    jaw = np.minimum(jaw, sdCapsule(jm, [0.415, -0.800, 0.020], [0.455, -0.735, -0.190], 0.068))
-    jaw = smin(jaw, sdBox(jm - np.array([0.455, -0.450, -0.145]),
-                          np.array([0.024, 0.290, 0.070])) - 0.026, 0.10)
-    jaw = smin(jaw, arch(j, -0.800, 0.19, 0.275, 0.048, 20.0, 1.28), 0.03)
-    return np.minimum(d, jaw)
-
-
-def normal(p):
-    e = 0.0016
-    out = np.zeros_like(p)
-    for k in ([1, -1, -1], [-1, -1, 1], [-1, 1, -1], [1, 1, 1]):
-        k = np.array(k, float) * e
-        out += k * map_(p + k)[..., None]
-    return out / np.maximum(nrm(out)[..., None], 1e-9)
-
-
-def ao(p, n):
-    s, w = np.zeros(p.shape[:-1]), 1.0
-    for i in range(1, 6):
-        h = 0.024 * i * i
-        s += w * (h - map_(p + n * h))
-        w *= 0.72
-    return np.clip(1.0 - 3.0 * s, 0.0, 1.0)
-
-
-def render(cols, rows, yaw, pitch, dist, cellw, phase=0.0, fov=1.75):
-    ys, xs = np.mgrid[0:rows, 0:cols]
-    u = ((xs + 0.5) / cols * 2 - 1) * (cols * cellw) / rows
-    v = 1 - (ys + 0.5) / rows * 2
-    target = np.array([0.0, -0.14, 0.0])
-    cp, sp = np.cos(pitch), np.sin(pitch)
-    ro = target + np.array([np.sin(yaw) * cp, sp, np.cos(yaw) * cp]) * dist
-    fw = target - ro; fw /= np.linalg.norm(fw)
-    rt = np.cross(fw, [0, 1, 0]); rt /= np.linalg.norm(rt)
-    up = np.cross(rt, fw)
-    rd = u[..., None] * rt + v[..., None] * up + fov * fw
-    rd /= nrm(rd)[..., None]
-
-    t = np.zeros(rd.shape[:-1])
-    alive = np.ones(t.shape, bool)
-    for _ in range(120):
-        h = map_(ro + rd * t[..., None])
-        alive &= h >= 0.0009
-        t = np.where(alive, t + h * 0.92, t)
-        alive &= t < 9.0
-    p = ro + rd * t[..., None]
-    hit = (map_(p) < 0.004) & (t < 9.0)
-
-    n = normal(p)
-    occ = ao(p, n) ** 1.15
-    front = np.clip((n * -rd).sum(-1), 0, 1)
-    # the key swings through the loop, so shading changes everywhere every
-    # frame and the glyphs keep churning even where the geometry barely moves
-    key = -rd * 0.72 + np.array([-0.34 + 0.16 * np.sin(phase),
-                                 0.54 - 0.07 * np.cos(phase), 0.0])
-    key = key / nrm(key)[..., None]
-    dif = np.clip((n * key).sum(-1), 0, 1)
-    sil = np.clip(1.0 - front, 0, 1) ** 3.0
-    lum = 0.09 + occ * (0.30 * front ** 0.9 + 0.70 * dif) + 0.20 * occ * sil
-    lum = np.clip((lum - 0.04) / 0.90, 0, 1)
-    # a drifting ripple worth about half a ramp step: not enough to disturb the
-    # form, enough that glyphs sitting on a boundary keep flipping
-    shim = (np.sin(xs * 0.31 + ys * 0.17 + phase) +
-            np.sin(xs * 0.13 - ys * 0.29 + 2.0 * phase))
-    return np.where(hit, np.clip(lum + 0.018 * shim, 0, 1), 0.0)
-
-
-# -------------------------------------------------------------------- output
 W, H = 1200.0, 400.0
-FS = 12.5                 # font size in px
-ADV = FS * 0.6            # advance width the grid is pinned to
-COLS = int(W // ADV)
-ROWS = int(H // FS)
-X0 = (W - COLS * ADV) / 2
-Y0 = (H - ROWS * FS) / 2
-FRAMES = 26
-DUR = 4.2                 # seconds for one full sway
-RAMP = " .:-=+*#%@"
-LIT = 5                   # ramp index at which a glyph joins the bright layer
+CX, CY = W / 2, H / 2
+R = 165.0                    # outer ring
+LOOP = 9.0                   # seconds for one full cycle
 
 BG = "#05060f"
-DIM = "#3f4a9e"
+GOLD = "#ffd166"
+CYAN = "#4cc9f0"
+VIOLET = "#7c5cff"
+INK = "#e8ecff"
+
+TICKS = 60                   # divisions of the rune band
+SAT_R = 44.0                 # flanking satellite arrays
 
 
-def esc(s):
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+def fmt(x):
+    return ("%.2f" % x).rstrip("0").rstrip(".")
+
+
+def circle(cx, cy, r, stroke, w, opacity=1.0, extra=""):
+    return ('<circle cx="%s" cy="%s" r="%s" fill="none" stroke="%s" '
+            'stroke-width="%s" opacity="%s"%s>' % (fmt(cx), fmt(cy), fmt(r), stroke,
+                                                   fmt(w), fmt(opacity), extra))
+
+
+def draw_anim(length, t0, t1, hold_to=0.93):
+    """stroke-dashoffset from full length to zero across [t0,t1] of the loop."""
+    return ('<animate attributeName="stroke-dashoffset" '
+            'values="%s;%s;0;0;%s" keyTimes="0;%s;%s;%s;1" dur="%ss" '
+            'calcMode="spline" keySplines="0 0 1 1;.4 0 .2 1;0 0 1 1;.6 0 .9 1" '
+            'repeatCount="indefinite"/>'
+            % (fmt(length), fmt(length), fmt(length),
+               fmt(t0), fmt(t1), fmt(hold_to), fmt(LOOP)))
+
+
+def dashed(length):
+    return ' stroke-dasharray="%s" stroke-dashoffset="%s"' % (fmt(length), fmt(length))
+
+
+def spin(cx, cy, period, reverse=False):
+    a, b = (360, 0) if reverse else (0, 360)
+    return ('<animateTransform attributeName="transform" type="rotate" '
+            'values="%d %s %s;%d %s %s" dur="%ss" repeatCount="indefinite"/>'
+            % (a, fmt(cx), fmt(cy), b, fmt(cx), fmt(cy), fmt(period)))
+
+
+def hexagram(cx, cy, r, t0, t1):
+    """Two triangles, inscribed. Perimeter of each is 3*r*sqrt(3)."""
+    out = []
+    per = 3.0 * r * math.sqrt(3.0)
+    for k, off in enumerate((0.0, math.pi / 3)):
+        pts = " ".join("%s,%s" % (fmt(cx + r * math.cos(off + i * 2 * math.pi / 3)),
+                                  fmt(cy + r * math.sin(off + i * 2 * math.pi / 3)))
+                       for i in range(3))
+        out.append('<polygon points="%s" fill="none" stroke="%s" stroke-width="1.6" '
+                   'stroke-linejoin="round"%s>%s</polygon>'
+                   % (pts, CYAN, dashed(per), draw_anim(per, t0 + k * 0.045, t1 + k * 0.045)))
+    return "".join(out)
+
+
+def rune_band(cx, cy, r, n, t0, t1):
+    """Tick marks between the outer rings, longer every third division."""
+    out = []
+    total = 0.0
+    segs = []
+    for i in range(n):
+        a = i * 2 * math.pi / n
+        long = (i % 3 == 0)
+        r0 = r - (10.0 if long else 6.0)
+        r1 = r - 1.5
+        segs.append((cx + r0 * math.cos(a), cy + r0 * math.sin(a),
+                     cx + r1 * math.cos(a), cy + r1 * math.sin(a), long))
+        total += r1 - r0
+    d = " ".join("M%s %sL%s %s" % (fmt(x0), fmt(y0), fmt(x1), fmt(y1))
+                 for x0, y0, x1, y1, _ in segs)
+    out.append('<path d="%s" stroke="%s" stroke-width="1.5" fill="none" opacity="0.85"%s>%s</path>'
+               % (d, GOLD, dashed(total), draw_anim(total, t0, t1)))
+    return "".join(out)
+
+
+def array(cx, cy, r, t0, scale=1.0, band_period=90.0, hex_period=140.0):
+    """One complete transmutation array, built outward from the centre."""
+    g = ['<g>']
+    g.append(circle(cx, cy, r, GOLD, 2.0 * scale, 0.95, dashed(2 * math.pi * r))
+             + draw_anim(2 * math.pi * r, t0, t0 + 0.16) + '</circle>')
+    g.append(circle(cx, cy, r - 10 * scale, GOLD, 1.0 * scale, 0.45,
+                    dashed(2 * math.pi * (r - 10 * scale)))
+             + draw_anim(2 * math.pi * (r - 10 * scale), t0 + 0.04, t0 + 0.20) + '</circle>')
+
+    g.append('<g>' + rune_band(cx, cy, r, int(TICKS * scale), t0 + 0.10, t0 + 0.30)
+             + spin(cx, cy, band_period) + '</g>')
+
+    ri = r * 0.60
+    g.append(circle(cx, cy, ri, GOLD, 1.4 * scale, 0.75, dashed(2 * math.pi * ri))
+             + draw_anim(2 * math.pi * ri, t0 + 0.14, t0 + 0.30) + '</circle>')
+    g.append('<g>' + hexagram(cx, cy, ri, t0 + 0.22, t0 + 0.44)
+             + spin(cx, cy, hex_period, reverse=True) + '</g>')
+
+    rc = r * 0.22
+    g.append(circle(cx, cy, rc, CYAN, 1.4 * scale, 0.9, dashed(2 * math.pi * rc))
+             + draw_anim(2 * math.pi * rc, t0 + 0.36, t0 + 0.48) + '</circle>')
+
+    # spokes and vertex nodes
+    spokes, per = [], 0.0
+    for k in range(6):
+        a = k * math.pi / 3
+        x, y = cx + ri * math.cos(a), cy + ri * math.sin(a)
+        spokes.append("M%s %sL%s %s" % (fmt(cx + rc * math.cos(a)), fmt(cy + rc * math.sin(a)),
+                                        fmt(x), fmt(y)))
+        per += ri - rc
+    g.append('<path d="%s" stroke="%s" stroke-width="1" fill="none" opacity="0.5"%s>%s</path>'
+             % (" ".join(spokes), CYAN, dashed(per), draw_anim(per, t0 + 0.40, t0 + 0.54)))
+    for k in range(6):
+        a = k * math.pi / 3
+        x, y = cx + ri * math.cos(a), cy + ri * math.sin(a)
+        g.append('<circle cx="%s" cy="%s" r="%s" fill="%s" fill-opacity="0.25" stroke="%s" '
+                 'stroke-width="1.2" opacity="0">'
+                 '<animate attributeName="opacity" values="0;0;1;1;0" keyTimes="0;%s;%s;0.93;1" '
+                 'dur="%ss" repeatCount="indefinite"/></circle>'
+                 % (fmt(x), fmt(y), fmt(5 * scale), GOLD, GOLD,
+                    fmt(t0 + 0.46), fmt(t0 + 0.56), fmt(LOOP)))
+
+    # the arc that races the circumference, then the flare
+    c = 2 * math.pi * r
+    g.append('<circle cx="%s" cy="%s" r="%s" fill="none" stroke="%s" stroke-width="%s" '
+             'stroke-linecap="round" stroke-dasharray="%s %s" opacity="0">'
+             '<animate attributeName="stroke-dashoffset" values="0;%s" keyTimes="0;1" '
+             'begin="%ss" dur="%ss" repeatCount="indefinite"/>'
+             '<animate attributeName="opacity" values="0;0;1;1;0;0" '
+             'keyTimes="0;%s;%s;%s;%s;1" dur="%ss" repeatCount="indefinite"/>'
+             '</circle>'
+             % (fmt(cx), fmt(cy), fmt(r), INK, fmt(2.6 * scale), fmt(c * 0.16), fmt(c),
+                fmt(-c), fmt(t0 * LOOP), fmt(LOOP * 0.34),
+                fmt(t0 + 0.56), fmt(t0 + 0.60), fmt(t0 + 0.86), fmt(t0 + 0.92), fmt(LOOP)))
+    g.append('</g>')
+    return "".join(g)
 
 
 def main():
-    top = len(RAMP) - 1
     parts = []
-    for f in range(FRAMES):
-        phase = 2 * np.pi * f / FRAMES
-        lum = render(COLS, ROWS,
-                     yaw=0.62 * np.sin(phase),
-                     pitch=0.11 + 0.07 * np.cos(phase * 0.5),
-                     dist=1.92, cellw=ADV / FS, phase=phase)
-        idx = np.clip((lum * top + 0.5).astype(int), 0, top)
+    # a spine running the full width, so the banner is a composition and not a
+    # small figure marooned in a lot of black
+    ticks = []
+    total = 0.0
+    for i in range(41):
+        x = 40 + i * (W - 80) / 40.0
+        if abs(x - CX) < R + 26:
+            continue
+        h = 9.0 if i % 5 == 0 else 4.0
+        ticks.append("M%s %sL%s %s" % (fmt(x), fmt(CY - h), fmt(x), fmt(CY + h)))
+        total += 2 * h
+    parts.append('<path d="%s" stroke="%s" stroke-width="1" fill="none" opacity="0.35"%s>%s</path>'
+                 % (" ".join(ticks), VIOLET, dashed(total), draw_anim(total, 0.02, 0.30)))
+    for x0, x1 in ((40, CX - R - 30), (CX + R + 30, W - 40)):
+        parts.append('<path d="M%s %sL%s %s" stroke="%s" stroke-width="1" opacity="0.30"%s>%s</path>'
+                     % (fmt(x0), fmt(CY), fmt(x1), fmt(CY), VIOLET,
+                        dashed(x1 - x0), draw_anim(x1 - x0, 0.0, 0.26)))
 
-        # two layers: the falloff in a flat dim colour, the highlights in the
-        # gradient, so the form has some depth instead of reading as a stencil
-        g = ['<g class="f f%d">' % f]
-        for cls, lo, hi in (("d", 2, LIT - 1), ("l", LIT, top)):
-            for r in range(ROWS):
-                line = "".join(RAMP[i] if lo <= i <= hi else " " for i in idx[r])
-                s = line.rstrip()
-                if not s.strip():
-                    continue
-                lead = len(s) - len(s.lstrip())
-                s = s[lead:]
-                g.append(
-                    '<text class="%s" x="%.2f" y="%.2f" textLength="%.2f" '
-                    'lengthAdjust="spacing" xml:space="preserve">%s</text>'
-                    % (cls, X0 + lead * ADV, Y0 + (r + 0.79) * FS,
-                       len(s) * ADV, esc(s)))
-        g.append('</g>')
-        parts.append("".join(g))
-        print("frame %2d/%d  %d rows" % (f + 1, FRAMES, parts[-1].count("<text")))
+    parts.append(array(CX - R - 30 - 96, CY, SAT_R, 0.06, 0.62, 70.0, 110.0))
+    parts.append(array(CX + R + 30 + 96, CY, SAT_R, 0.10, 0.62, 82.0, 96.0))
+    parts.append(array(CX, CY, R, 0.0, 1.0))
 
-    slot = 100.0 / FRAMES
-    delays = "".join(".f%d{animation-delay:%.3fs}" % (i, DUR * i / FRAMES)
-                     for i in range(FRAMES))
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" '
         'width="1200" height="400" role="img" '
-        'aria-label="A human skull drawn entirely in monospace characters, '
-        'turning slowly between three-quarter views.">\n'
-        '<style>\n'
-        'text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'
-        '"DejaVu Sans Mono",monospace;font-size:%.1fpx}\n'
-        '.d{fill:%s}\n'
-        '.l{fill:url(#bone)}\n'
-        '.f{opacity:0;animation:flick %.2fs steps(1) infinite}\n'
-        '@keyframes flick{0%%{opacity:1}%.4f%%{opacity:0}100%%{opacity:0}}\n'
-        '%s\n'
-        '@media (prefers-reduced-motion:reduce){.f{animation:none}.f0{opacity:1}}\n'
-        '</style>\n'
-        '<defs><linearGradient id="bone" gradientUnits="userSpaceOnUse" '
-        'x1="470" y1="30" x2="760" y2="390">'
-        '<stop offset="0" stop-color="#a68cff"/>'
-        '<stop offset="0.45" stop-color="#7ce0ff"/>'
-        '<stop offset="1" stop-color="#ffd166"/></linearGradient></defs>\n'
+        'aria-label="An alchemical transmutation circle drawing itself stroke by '
+        'stroke, its rune band and inscribed hexagram counter-rotating, then '
+        'igniting as a bright arc races around the circumference.">\n'
+        '<defs><filter id="g" x="-25%%" y="-25%%" width="150%%" height="150%%">'
+        '<feGaussianBlur stdDeviation="3.2" result="b"/>'
+        '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        '</filter></defs>\n'
         '<rect width="1200" height="400" fill="%s"/>\n'
-        '%s\n</svg>\n'
-    ) % (FS, DIM, DUR, slot, delays, BG, "\n".join(parts))
+        '<g filter="url(#g)" stroke-linecap="round">\n%s\n</g>\n</svg>\n'
+    ) % (BG, "\n".join(parts))
 
     with open("assets/hero.svg", "w", encoding="utf-8") as fh:
         fh.write(svg)
-    print("wrote assets/hero.svg  %.1f KB  %d frames  %dx%d cells"
-          % (len(svg.encode("utf-8")) / 1024, FRAMES, COLS, ROWS))
+    print("wrote assets/hero.svg  %.1f KB" % (len(svg.encode("utf-8")) / 1024))
 
 
 if __name__ == "__main__":
