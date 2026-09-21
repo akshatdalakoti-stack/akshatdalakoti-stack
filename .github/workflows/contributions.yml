@@ -1,0 +1,44 @@
+name: contributions
+
+# Redraws assets/contributions.svg once a day. The card counts from 2026-05-31,
+# so the number has to be recomputed rather than served by a stats host.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: contributions
+  cancel-in-progress: false
+
+jobs:
+  redraw:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Redraw the card
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USER: ${{ github.repository_owner }}
+        run: python tools/gen_contrib.py
+
+      - name: Commit if the numbers moved
+        run: |
+          if [ -z "$(git status --porcelain assets/contributions.svg)" ]; then
+            echo "nothing changed today"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/contributions.svg
+          git commit -m "Redraw the contribution card"
+          git push

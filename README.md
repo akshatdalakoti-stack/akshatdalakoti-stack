@@ -63,6 +63,8 @@ graphics, embedded control, and the small tools that make the rest less painful.
 <img height="200" alt="Top languages by repository" src="https://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=akshatdalakoti-stack&theme=github_dark">
 <img height="200" alt="Languages I commit in most" src="https://github-profile-summary-cards.vercel.app/api/cards/most-commit-language?username=akshatdalakoti-stack&theme=github_dark">
 
+<img height="195" alt="Contributions since 31 May 2026, with a weekly bar strip" src="assets/contributions.svg">
+
 <img height="195" alt="Contribution streak" src="https://streak-stats.demolab.com?user=akshatdalakoti-stack&hide_border=true&background=05060f&ring=ff2d46&fire=ff6b7d&currStreakLabel=ff2d46&sideLabels=e8ecff&dates=8b93b8&stroke=9e1330&currStreakNum=e8ecff&sideNums=e8ecff">
 
 </div>
