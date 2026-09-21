@@ -43,14 +43,15 @@ graphics, embedded control, and the small tools that make the rest less painful.
 ## Tech
 
 <p>
-  <img src="https://img.shields.io/badge/C%2B%2B-05060f?style=flat-square&logo=cplusplus&logoColor=ff2d46" alt="C++">
-  <img src="https://img.shields.io/badge/Python-05060f?style=flat-square&logo=python&logoColor=ff6b7d" alt="Python">
-  <img src="https://img.shields.io/badge/C-05060f?style=flat-square&logo=c&logoColor=ff2d46" alt="C">
-  <img src="https://img.shields.io/badge/NumPy-05060f?style=flat-square&logo=numpy&logoColor=ff6b7d" alt="NumPy">
-  <img src="https://img.shields.io/badge/Jupyter-05060f?style=flat-square&logo=jupyter&logoColor=ff2d46" alt="Jupyter">
-  <img src="https://img.shields.io/badge/Linux-05060f?style=flat-square&logo=linux&logoColor=ff6b7d" alt="Linux">
-  <img src="https://img.shields.io/badge/Git-05060f?style=flat-square&logo=git&logoColor=ff2d46" alt="Git">
-  <img src="https://img.shields.io/badge/Arduino-05060f?style=flat-square&logo=arduino&logoColor=ff6b7d" alt="Arduino">
+  <img src="https://img.shields.io/badge/Go-05060f?style=flat-square&logo=go&logoColor=ff2d46" alt="Go">
+  <img src="https://img.shields.io/badge/C%2B%2B-05060f?style=flat-square&logo=cplusplus&logoColor=ff6b7d" alt="C++">
+  <img src="https://img.shields.io/badge/Python-05060f?style=flat-square&logo=python&logoColor=ff2d46" alt="Python">
+  <img src="https://img.shields.io/badge/C-05060f?style=flat-square&logo=c&logoColor=ff6b7d" alt="C">
+  <img src="https://img.shields.io/badge/NumPy-05060f?style=flat-square&logo=numpy&logoColor=ff2d46" alt="NumPy">
+  <img src="https://img.shields.io/badge/Jupyter-05060f?style=flat-square&logo=jupyter&logoColor=ff6b7d" alt="Jupyter">
+  <img src="https://img.shields.io/badge/Linux-05060f?style=flat-square&logo=linux&logoColor=ff2d46" alt="Linux">
+  <img src="https://img.shields.io/badge/Git-05060f?style=flat-square&logo=git&logoColor=ff6b7d" alt="Git">
+  <img src="https://img.shields.io/badge/Arduino-05060f?style=flat-square&logo=arduino&logoColor=ff2d46" alt="Arduino">
 </p>
 
 ## Stats
