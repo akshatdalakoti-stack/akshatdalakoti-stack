@@ -4,7 +4,9 @@
 
 ### **`Akshat Dalakoti`**
 
-***“As far as I’m concerned, destiny can go fuck itself.”***
+***“Destiny alone is not enough. Something more is needed.”***
+
+<sub>— Geralt of Rivia, *Sword of Destiny*</sub>
 
 <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/">
   <img src="https://img.shields.io/badge/▶_run_it_live-05060f?style=for-the-badge&labelColor=ff2d46&color=05060f" alt="Run the live version">
