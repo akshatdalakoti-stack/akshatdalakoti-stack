@@ -43,36 +43,36 @@ graphics, embedded control, and the small tools that make the rest less painful.
 ## Tech
 
 <p>
-  <img src="https://img.shields.io/badge/Python-05060f?style=flat-square&logo=python&logoColor=4cc9f0" alt="Python">
-  <img src="https://img.shields.io/badge/C-05060f?style=flat-square&logo=c&logoColor=4cc9f0" alt="C">
-  <img src="https://img.shields.io/badge/C++-05060f?style=flat-square&logo=cplusplus&logoColor=4cc9f0" alt="C++">
-  <img src="https://img.shields.io/badge/JavaScript-05060f?style=flat-square&logo=javascript&logoColor=ffd166" alt="JavaScript">
-  <img src="https://img.shields.io/badge/Go-05060f?style=flat-square&logo=go&logoColor=4cc9f0" alt="Go">
-  <img src="https://img.shields.io/badge/NumPy-05060f?style=flat-square&logo=numpy&logoColor=7c5cff" alt="NumPy">
-  <img src="https://img.shields.io/badge/Jupyter-05060f?style=flat-square&logo=jupyter&logoColor=ffd166" alt="Jupyter">
-  <img src="https://img.shields.io/badge/Linux-05060f?style=flat-square&logo=linux&logoColor=ffd166" alt="Linux">
-  <img src="https://img.shields.io/badge/Git-05060f?style=flat-square&logo=git&logoColor=ff8fd1" alt="Git">
-  <img src="https://img.shields.io/badge/Arduino-05060f?style=flat-square&logo=arduino&logoColor=4cc9f0" alt="Arduino">
+  <img src="https://img.shields.io/badge/C%2B%2B-05060f?style=flat-square&logo=cplusplus&logoColor=ff2d46" alt="C++">
+  <img src="https://img.shields.io/badge/Python-05060f?style=flat-square&logo=python&logoColor=ff6b7d" alt="Python">
+  <img src="https://img.shields.io/badge/C-05060f?style=flat-square&logo=c&logoColor=ff2d46" alt="C">
+  <img src="https://img.shields.io/badge/NumPy-05060f?style=flat-square&logo=numpy&logoColor=ff6b7d" alt="NumPy">
+  <img src="https://img.shields.io/badge/Jupyter-05060f?style=flat-square&logo=jupyter&logoColor=ff2d46" alt="Jupyter">
+  <img src="https://img.shields.io/badge/Linux-05060f?style=flat-square&logo=linux&logoColor=ff6b7d" alt="Linux">
+  <img src="https://img.shields.io/badge/Git-05060f?style=flat-square&logo=git&logoColor=ff2d46" alt="Git">
+  <img src="https://img.shields.io/badge/Arduino-05060f?style=flat-square&logo=arduino&logoColor=ff6b7d" alt="Arduino">
 </p>
 
 ## Stats
 
 <div align="center">
 
-<img height="150" alt="GitHub stats" src="https://github-readme-stats.vercel.app/api?username=akshatdalakoti-stack&show_icons=true&hide_border=true&bg_color=05060f&title_color=7c5cff&icon_color=4cc9f0&text_color=b8c6ff">
-<img height="150" alt="Top languages" src="https://github-readme-stats.vercel.app/api/top-langs/?username=akshatdalakoti-stack&layout=compact&hide_border=true&bg_color=05060f&title_color=7c5cff&text_color=b8c6ff">
+<img height="200" alt="Contributions, public repos, and the last year of activity" src="https://github-profile-summary-cards.vercel.app/api/cards/profile-details?username=akshatdalakoti-stack&theme=github_dark">
 
-<img height="150" alt="Contribution streak" src="https://streak-stats.demolab.com?user=akshatdalakoti-stack&hide_border=true&background=05060f&ring=7c5cff&fire=ffd166&currStreakLabel=4cc9f0&sideLabels=b8c6ff&dates=8b93b8&stroke=1c2040&currStreakNum=e8ecff&sideNums=e8ecff">
+<img height="200" alt="Top languages by repository" src="https://github-profile-summary-cards.vercel.app/api/cards/repos-per-language?username=akshatdalakoti-stack&theme=github_dark">
+<img height="200" alt="Languages I commit in most" src="https://github-profile-summary-cards.vercel.app/api/cards/most-commit-language?username=akshatdalakoti-stack&theme=github_dark">
+
+<img height="195" alt="Contribution streak" src="https://streak-stats.demolab.com?user=akshatdalakoti-stack&hide_border=true&background=05060f&ring=ff2d46&fire=ff6b7d&currStreakLabel=ff2d46&sideLabels=e8ecff&dates=8b93b8&stroke=9e1330&currStreakNum=e8ecff&sideNums=e8ecff">
 
 </div>
 
 ## Elsewhere
 
 <p>
-  <a href="https://github.com/akshatdalakoti-stack"><img src="https://img.shields.io/badge/GitHub-05060f?style=for-the-badge&logo=github&logoColor=b8c6ff" alt="GitHub"></a>
-  <a href="https://www.linkedin.com/in/akshat-dalakoti-82b78137a/"><img src="https://img.shields.io/badge/LinkedIn-05060f?style=for-the-badge&logo=linkedin&logoColor=4cc9f0" alt="LinkedIn"></a>
-  <a href="https://leetcode.com/u/dalakoti_0019_akshat/"><img src="https://img.shields.io/badge/LeetCode-05060f?style=for-the-badge&logo=leetcode&logoColor=ffd166" alt="LeetCode"></a>
-  <a href="mailto:akshatdalakoti@gmail.com"><img src="https://img.shields.io/badge/Email-05060f?style=for-the-badge&logo=gmail&logoColor=ffd166" alt="Email"></a>
+  <a href="https://github.com/akshatdalakoti-stack"><img src="https://img.shields.io/badge/GitHub-05060f?style=for-the-badge&logo=github&logoColor=ff6b7d" alt="GitHub"></a>
+  <a href="https://www.linkedin.com/in/akshat-dalakoti-82b78137a/"><img src="https://img.shields.io/badge/LinkedIn-05060f?style=for-the-badge&logo=linkedin&logoColor=ff2d46" alt="LinkedIn"></a>
+  <a href="https://leetcode.com/u/dalakoti_0019_akshat/"><img src="https://img.shields.io/badge/LeetCode-05060f?style=for-the-badge&logo=leetcode&logoColor=ff6b7d" alt="LeetCode"></a>
+  <a href="mailto:akshatdalakoti@gmail.com"><img src="https://img.shields.io/badge/Email-05060f?style=for-the-badge&logo=gmail&logoColor=ff2d46" alt="Email"></a>
 </p>
 
 ---
