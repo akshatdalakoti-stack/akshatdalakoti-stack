@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hero.svg" width="100%" alt="An alchemical transmutation circle drawing itself stroke by stroke, its rune band and inscribed hexagram counter-rotating, then igniting as a bright arc races around the circumference">
+<img src="assets/hole.svg" width="100%" alt="A black hole: its shadow rimmed by a bright photon ring, an accretion disc seen almost edge-on that runs blue-white at the inner orbits and crimson at the outer ones, its far side lensed up over the top, and a starfield smeared into arcs around it">
 
 ### **`Akshat Dalakoti`**
 
@@ -13,7 +13,8 @@
 </a>
 
 <sub>
-  the banner is not a video &mdash; it is geometry, drawing itself<br>
+  the banner is not a video &mdash; it is geometry, and the disc shears<br>
+  because each orbit keeps its own Keplerian period<br>
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#curve">space&#8209;filling curve</a> &middot;
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#bolt">lightning</a> &middot;
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#slime">slime mold</a> &middot;
