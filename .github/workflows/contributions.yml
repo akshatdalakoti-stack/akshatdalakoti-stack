@@ -1,11 +1,13 @@
 name: contributions
 
-# Redraws assets/contributions.svg once a day. The card counts from 2026-05-31,
-# so the number has to be recomputed rather than served by a stats host.
+# Redraws assets/contributions.svg. The card counts from 2026-05-31, so the number
+# has to be recomputed rather than served by a stats host.
+#
+# This ran on a daily cron and pushed a commit every time the number moved, which
+# meant the history filled with redraws and each one dragged a Pages rebuild behind
+# it. Run it by hand when the card looks stale.
 
 on:
-  schedule:
-    - cron: "17 3 * * *"
   workflow_dispatch:
 
 permissions:
