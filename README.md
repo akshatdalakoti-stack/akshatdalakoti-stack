@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/hole.svg" width="100%" alt="A black hole: its shadow rimmed by a bright photon ring, an accretion disc seen almost edge-on that runs blue-white at the inner orbits and crimson at the outer ones, its far side lensed up over the top, and a starfield smeared into arcs around it">
+<img src="assets/fan.svg" width="100%" alt="Three fans of double pendulums. Each fan releases ten pendulums a millionth of a radian apart; they draw one line together, then the line frays into a fan of separate curves">
 
 ### **`Akshat Dalakoti`**
 
@@ -13,8 +13,8 @@
 </a>
 
 <sub>
-  the banner is not a video &mdash; it is geometry, and the disc shears<br>
-  because each orbit keeps its own Keplerian period<br>
+  the banner is not a video &mdash; it is physics, integrated and baked<br>
+  ten pendulums per fan, a millionth of a radian apart, drawing one line until they do not<br>
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#curve">space&#8209;filling curve</a> &middot;
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#bolt">lightning</a> &middot;
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#slime">slime mold</a> &middot;
