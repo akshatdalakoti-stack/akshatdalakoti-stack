@@ -19,7 +19,10 @@
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#bolt">lightning</a> &middot;
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#slime">slime mold</a> &middot;
   <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#tess">tesseract</a> &middot;
-  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#synth">horizon</a>
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#synth">horizon</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#chaos">chaos fan</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#rd">reaction&#8209;diffusion</a> &middot;
+  <a href="https://akshatdalakoti-stack.github.io/akshatdalakoti-stack/lab.html#jam">traffic jam</a>
 </sub>
 
 </div>
