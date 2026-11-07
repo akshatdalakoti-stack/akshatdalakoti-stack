@@ -1,11 +1,16 @@
 """
-Draws the contribution card that counts from the day the work actually started.
+Draws the streak card that counts from the day the work actually started.
 
-Every hosted stats card I could find counts from the account's first commit,
-which for me is one stray commit in August 2025 -- nine months of empty calendar
-in front of the part I care about. The streak card documents a `starting_year`
-parameter, but the hosted instance ignores it, so the honest range has to be
-computed here instead: everything from 2026-05-31 onward, and nothing before it.
+Every hosted stats card counts from the account's first commit, which for me is
+one stray commit in August 2025 -- seven months of empty calendar in front of
+the part I care about. The hosted streak card documents a `starting_year`
+parameter for exactly this, but that instance ignores it, so the honest range
+has to be computed here instead: everything from 2026-03-27 onward, the first
+day with real work on it, and nothing before.
+
+So this replaces the hosted card rather than sitting next to it. Same three
+figures -- total, current streak, longest streak -- plus the weekly strip the
+hosted one has no room for.
 
 Contributions come from the GraphQL API when a token is in the environment --
 that is the Actions path. `contributionsCollection` refuses windows longer than
@@ -13,8 +18,8 @@ a year, so the range is walked in year-long chunks and summed, which matters
 more every year this keeps running. With no token it falls back to a public
 mirror of the same calendar, so the script still works on a laptop.
 
-Output is assets/contributions.svg: the total, three supporting numbers, and a
-weekly bar strip, in the banner's palette. Standard library only.
+Output is assets/contributions.svg, in the banner's palette. Standard library
+only. The workflow runs this by hand; the numbers are a day stale at worst.
 
 Run from the repository root:  python tools/gen_contrib.py
 """
@@ -24,8 +29,7 @@ import os
 import urllib.error
 import urllib.request
 
-START = dt.date(2026, 5, 31)
-START_LABEL = "31 MAY 2026"
+START = dt.date(2026, 3, 27)
 USER = os.environ.get("GITHUB_USER", "akshatdalakoti-stack")
 OUT = os.path.join("assets", "contributions.svg")
 
@@ -37,9 +41,10 @@ INK = "#e8ecff"
 MUTED = "#8b93b8"
 FONT = "'Segoe UI', Ubuntu, -apple-system, BlinkMacSystemFont, sans-serif"
 
-W, H = 495.0, 195.0
+W, H = 495.0, 235.0
 PAD = 26.0
-BASE_Y, MAX_BAR = 158.0, 44.0
+PANEL_Y, PANEL_BOTTOM = 26.0, 140.0
+BASE_Y, MAX_BAR = 198.0, 42.0
 
 GQL = """
 query($login:String!, $from:DateTime!, $to:DateTime!) {
@@ -110,11 +115,33 @@ def collect():
     if not days:
         days = from_mirror()
     parsed = {dt.date.fromisoformat(k): v for k, v in days.items()}
-    return {d: v for d, v in parsed.items() if START <= d <= today}
+    return {d: v for d, v in parsed.items() if START <= d <= today}, today
+
+
+def current_streak(days, today):
+    """Today counts once there is something on it, but an empty today does not break it."""
+    day = today if days.get(today) else today - dt.timedelta(days=1)
+    length = 0
+    while days.get(day):
+        length += 1
+        day -= dt.timedelta(days=1)
+    return length, day + dt.timedelta(days=1)
+
+
+def longest_streak(days):
+    best, best_end, run, end = 0, START, 0, START
+    for day in sorted(days):
+        if days[day]:
+            run, end = run + 1, day
+        else:
+            run = 0
+        if run > best:
+            best, best_end = run, end
+    return best, best_end - dt.timedelta(days=best - 1) if best else START, best_end
 
 
 def weekly(days):
-    """(monday, total) per ISO week, in calendar order, so the strip reads left to right."""
+    """(monday, total) per week, in calendar order, so the strip reads left to right."""
     buckets = {}
     for day, count in days.items():
         monday = day - dt.timedelta(days=day.weekday())
@@ -122,41 +149,65 @@ def weekly(days):
     return sorted(buckets.items())
 
 
+def short(day):
+    return day.strftime("%d %b").lstrip("0")
+
+
 def stamp(day):
     return day.strftime("%d %b %Y").lstrip("0")
 
 
-def render(days):
+def text(x, y, size, fill, body, anchor="middle", weight=None, spacing=None):
+    extra = ""
+    if weight:
+        extra += ' font-weight="%s"' % weight
+    if spacing:
+        extra += ' letter-spacing="%s"' % spacing
+    return ('<text x="%.1f" y="%.1f" text-anchor="%s" font-family="%s" font-size="%g" '
+            'fill="%s"%s>%s</text>' % (x, y, anchor, FONT, size, fill, extra, body))
+
+
+def render(days, today):
     total = sum(days.values())
-    active = sum(1 for v in days.values() if v)
-    best_day, best = max(days.items(), key=lambda kv: (kv[1], kv[0]), default=(START, 0))
-    last = max(days) if days else START
+    streak, streak_from = current_streak(days, today)
+    longest, long_from, long_to = longest_streak(days)
     bars = weekly(days) or [(START, 0)]
     peak = max(v for _, v in bars) or 1
 
+    col = (W - 2 * PAD) / 3.0
+    centres = [PAD + col * (i + 0.5) for i in range(3)]
     slot = (W - 2 * PAD) / len(bars)
     bar_w = max(1.5, slot - min(3.0, slot * 0.28))
-    right = W - PAD
 
     out = ['<svg xmlns="http://www.w3.org/2000/svg" width="%g" height="%g" '
            'viewBox="0 0 %g %g" role="img" aria-labelledby="t">' % (W, H, W, H),
-           '<title id="t">%d contributions since %s</title>' % (total, stamp(START)),
+           '<title id="t">%d contributions since %s, current streak %d days, '
+           'longest %d days</title>' % (total, stamp(START), streak, longest),
            '<rect width="%g" height="%g" rx="10" fill="%s"/>' % (W, H, BG),
            '<rect x="0.5" y="0.5" width="%g" height="%g" rx="9.5" fill="none" '
-           'stroke="%s" stroke-opacity="0.45"/>' % (W - 1, H - 1, BLOOD),
-           '<text x="%g" y="38" font-family="%s" font-size="11" letter-spacing="2.4" '
-           'fill="%s">SINCE %s</text>' % (PAD, FONT, MUTED, START_LABEL),
-           '<text x="%g" y="96" font-family="%s" font-size="52" font-weight="700" '
-           'fill="%s">%d</text>' % (PAD, FONT, CRIMSON, total),
-           '<text x="%g" y="96" font-family="%s" font-size="13" fill="%s">contributions</text>'
-           % (PAD + 30 * len(str(total)) + 12, FONT, INK),
-           '<text x="%g" y="58" text-anchor="end" font-family="%s" font-size="12" '
-           'fill="%s">%d active days</text>' % (right, FONT, INK, active),
-           '<text x="%g" y="80" text-anchor="end" font-family="%s" font-size="12" '
-           'fill="%s">busiest: %d on %s</text>'
-           % (right, FONT, ROSE, best, best_day.strftime("%d %b").lstrip("0")),
-           '<text x="%g" y="102" text-anchor="end" font-family="%s" font-size="11" '
-           'fill="%s">last: %s</text>' % (right, FONT, MUTED, stamp(last))]
+           'stroke="%s" stroke-opacity="0.45"/>' % (W - 1, H - 1, BLOOD)]
+
+    for x in (PAD + col, PAD + 2 * col):
+        out.append('<line x1="%.1f" y1="%g" x2="%.1f" y2="%g" stroke="%s" '
+                   'stroke-opacity="0.45"/>' % (x, PANEL_Y, x, PANEL_BOTTOM, BLOOD))
+
+    # Middle panel carries the ring, so the eye lands on the streak the way it
+    # does on the card this replaces.
+    out.append('<circle cx="%.1f" cy="71" r="30" fill="none" stroke="%s" '
+               'stroke-width="2.5" stroke-opacity="0.85"/>' % (centres[1], CRIMSON))
+
+    panels = [
+        (centres[0], str(total), INK, "Total Contributions",
+         "%s &#8594; present" % short(START)),
+        (centres[1], str(streak), CRIMSON, "Current Streak",
+         short(streak_from) if streak else short(today)),
+        (centres[2], str(longest), INK, "Longest Streak",
+         "%s &#8211; %s" % (short(long_from), short(long_to)) if longest else "&#8211;"),
+    ]
+    for cx, number, colour, label, sub in panels:
+        out.append(text(cx, 82, 34, colour, number, weight="700"))
+        out.append(text(cx, 108, 12, CRIMSON if colour == CRIMSON else INK, label))
+        out.append(text(cx, 128, 10.5, MUTED, sub))
 
     for i, (monday, value) in enumerate(bars):
         height = max(2.0, MAX_BAR * (value / peak))
@@ -164,23 +215,22 @@ def render(days):
                    'fill-opacity="%.2f"><title>%d in the week of %s</title></rect>'
                    % (PAD + i * slot, BASE_Y - height, bar_w, height, CRIMSON,
                       0.32 + 0.68 * (value / peak), value, stamp(monday)))
-
     out.append('<line x1="%g" y1="%g" x2="%g" y2="%g" stroke="%s" stroke-opacity="0.5"/>'
                % (PAD, BASE_Y + 1, W - PAD, BASE_Y + 1, BLOOD))
-    out.append('<text x="%g" y="178" font-family="%s" font-size="10" fill="%s">'
-               'weekly, %d weeks</text>' % (PAD, FONT, MUTED, len(bars)))
-    out.append('<text x="%g" y="178" text-anchor="end" font-family="%s" font-size="10" '
-               'fill="%s">refreshed daily</text>' % (right, FONT, MUTED))
+    out.append(text(PAD, 218, 10, MUTED, "weekly, %d weeks" % len(bars), anchor="start"))
+    out.append(text(W - PAD, 218, 10, MUTED, "%s &#8594; %s" % (stamp(START), stamp(today)),
+                    anchor="end"))
     out.append('</svg>')
     return "\n".join(out) + "\n"
 
 
 def main():
-    days = collect()
+    days, today = collect()
     with open(OUT, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(render(days))
-    print("wrote %s: %d contributions over %d days"
-          % (OUT, sum(days.values()), len(days)))
+        fh.write(render(days, today))
+    streak, _ = current_streak(days, today)
+    print("wrote %s: %d contributions since %s, current streak %d"
+          % (OUT, sum(days.values()), START.isoformat(), streak))
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 name: contributions
 
-# Redraws assets/contributions.svg. The card counts from 2026-05-31, so the number
+# Redraws assets/contributions.svg. The card counts from 2026-03-27, so the number
 # has to be recomputed rather than served by a stats host.
 #
 # This ran on a daily cron and pushed a commit every time the number moved, which
